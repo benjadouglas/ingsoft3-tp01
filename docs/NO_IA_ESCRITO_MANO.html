@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cómo funciona Borrador</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Source+Code+Pro:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary: #f7a501;
+            --ink: #23251d;
+            --body: #4d4f46;
+            --mute: #6c6e63;
+            --ash: #9b9c92;
+            --hairline: #bfc1b7;
+            --hairline-soft: #dcdfd2;
+            --canvas: #eeefe9;
+            --surface-soft: #e5e7e0;
+            --card: #ffffff;
+            --dark: #23251d;
+            --green: #2c8c66;
+            --green-soft: #d9eddf;
+            --blue-soft: #dceaf6;
+            --red: #cd4239;
+            --sans: "IBM Plex Sans", -apple-system, system-ui, sans-serif;
+            --mono: "Source Code Pro", ui-monospace, Menlo, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            color-scheme: light;
+        }
+
+        body {
+            margin: 0;
+            background: var(--canvas);
+            color: var(--body);
+            font: 17px/1.6 var(--sans);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .wrap {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .nav {
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .brand {
+            color: var(--ink);
+            font-weight: 700;
+            font-size: 18px;
+            letter-spacing: -.3px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .brand i {
+            width: 14px;
+            height: 14px;
+            background: var(--primary);
+            border-radius: 3px;
+            display: inline-block;
+        }
+
+        .nav a {
+            color: var(--body);
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            margin-left: 16px;
+        }
+
+        .nav a:hover {
+            color: var(--ink);
+        }
+
+        header.hero {
+            padding: 64px 0 24px;
+        }
+
+        .eyebrow {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            color: var(--mute);
+        }
+
+        h1 {
+            color: var(--ink);
+            font-size: 38px;
+            line-height: 1.2;
+            letter-spacing: -.8px;
+            margin: 8px 0 16px;
+            font-weight: 800;
+        }
+
+        .lede {
+            font-size: 20px;
+            line-height: 1.5;
+            color: var(--ink);
+            margin: 0;
+        }
+
+        h2 {
+            color: var(--ink);
+            font-size: 22px;
+            letter-spacing: -.4px;
+            margin: 56px 0 12px;
+        }
+
+        p {
+            margin: 0 0 16px;
+        }
+
+        strong {
+            color: var(--ink);
+            font-weight: 600;
+        }
+
+        code {
+            font: 500 15px/1.4 var(--mono);
+            background: var(--surface-soft);
+            color: var(--ink);
+            padding: 1px 6px;
+            border-radius: 3px;
+        }
+
+        .aside {
+            background: var(--card);
+            border-left: 3px solid var(--primary);
+            padding: 14px 18px;
+            margin: 24px 0;
+            font-size: 16px;
+        }
+
+        /* ciclo */
+        .loop {
+            background: var(--card);
+            border: 1px solid var(--hairline);
+            border-radius: 8px;
+            padding: 24px;
+            margin: 28px 0 6px;
+            overflow-x: auto;
+        }
+
+        .loop-inner {
+            min-width: 560px;
+        }
+
+        .lanes {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 8px;
+        }
+
+        .lane {
+            text-align: center;
+            font-weight: 700;
+            color: var(--ink);
+            background: var(--surface-soft);
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 14px;
+        }
+
+        .lane small {
+            display: block;
+            color: var(--mute);
+            font-weight: 500;
+            font-size: 12px;
+        }
+
+        .step {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            align-items: center;
+            padding: 14px 0;
+            border-top: 1px dashed var(--hairline-soft);
+        }
+
+        .step div {
+            font-size: 15px;
+        }
+
+        .step .who {
+            color: var(--ink);
+            font-weight: 600;
+        }
+
+        .step .empty {
+            color: var(--ash);
+            text-align: center;
+            font-size: 13px;
+        }
+
+        .pill {
+            font: 500 12px/1 var(--mono);
+            padding: 5px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--hairline);
+            background: var(--canvas);
+            color: var(--body);
+            display: block;
+            width: fit-content;
+            margin-top: 8px;
+            white-space: nowrap;
+        }
+
+        .pill.you {
+            background: var(--dark);
+            color: #fff;
+            border-color: var(--dark);
+        }
+
+        .pill.ok {
+            background: var(--green-soft);
+            border-color: var(--green);
+            color: var(--ink);
+        }
+
+        .again {
+            text-align: center;
+            color: var(--mute);
+            font-size: 13px;
+            padding: 12px 0 0;
+            border-top: 1px dashed var(--hairline-soft);
+        }
+
+        /* botones */
+        .buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin: 20px 0 28px;
+        }
+
+        .btn-card {
+            background: var(--card);
+            border: 1px solid var(--hairline);
+            border-radius: 8px;
+            padding: 18px 20px;
+        }
+
+        .btn-card .b {
+            display: inline-flex;
+            height: 36px;
+            align-items: center;
+            padding: 0 16px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .btn-card .b.refinar {
+            background: var(--surface-soft);
+            color: var(--ink);
+        }
+
+        .btn-card .b.implementar {
+            background: var(--primary);
+            color: var(--ink);
+        }
+
+        .btn-card p {
+            font-size: 15px;
+            margin: 0;
+        }
+
+        footer {
+            margin: 72px 0 48px;
+            font-size: 14px;
+            color: var(--mute);
+            border-top: 1px solid var(--hairline-soft);
+            padding-top: 16px;
+        }
+
+        footer a {
+            color: var(--ink);
+        }
+
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 30px;
+            }
+
+            .buttons {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+
+        <header class="hero">
+            <h1>Revisá el plan cuando no estas con la compu</h1>
+            <p class="lede">El agente publica un plan. Vos lo leés, comentás lo que cambiarías y decidís si debe
+                corregirlo o empezar implementarlo.</p>
+        </header>
+
+        <h2>Por qué existe</h2>
+        <p>Cuando Claude Code arma un plan, queda en la terminal o en un archivo Markdown del repo. Si estoy fuera de
+            casa o lejos de la compu, y quiero corregirle algo que escribio, o señalarle algo, es una fiaca sacarle
+            screen, seleccionarle que tiene que cambiar, y describir el cambio</p>
+        <p>Borrador resuelve eso. El agente publica el plan, yo lo comento en el browser y envío todos los comentarios
+            juntos.</p>
+
+        <h2 id="flujo">El flujo</h2>
+        <p>Un <strong>plan</strong> es un documento HTML que el agente sube a un proyecto. Cada corrección crea una
+            <strong>versión</strong>. Las versiones anteriores quedan guardadas.
+        </p>
+        <p>El flujo funciona por turnos. El agente publica lo publica y vos revisas y comentas. Cuando termino, apretas
+            Refinar o Implementar. Refinar le devuelve el plan al agente para que publique otra versión. Implementar
+            aprueba el plan y le indica que empiece a trabajar.</p>
+
+        <div class="loop">
+            <div class="loop-inner">
+                <div class="lanes">
+                    <div class="lane">Agente<small>Claude Code, en tu laptop</small></div>
+                    <div class="lane">Vos<small>en el browser</small></div>
+                </div>
+                <div class="step">
+                    <div><span class="who">Publica el plan</span> como versión 1
+                        <span class="pill you">pasa a tu turno</span></div>
+                    <div class="empty">espera</div>
+                </div>
+                <div class="step">
+                    <div class="empty">espera</div>
+                    <div><span class="who">Leés y comentás</span> sobre los bloques que quieras</div>
+                </div>
+                <div class="step">
+                    <div class="empty">espera</div>
+                    <div><span class="who">Apretás Refinar</span>
+                        <span class="pill">pasa al turno del agente</span></div>
+                </div>
+                <div class="step">
+                    <div><span class="who">Recibe los comentarios</span> y publica la versión 2
+                        <span class="pill you">pasa a tu turno</span></div>
+                    <div class="empty">espera</div>
+                </div>
+                <div class="step">
+                    <div class="empty">espera</div>
+                    <div><span class="who">Volvés a leer</span> y apretás Implementar
+                        <span class="pill ok">plan aprobado</span></div>
+                </div>
+                <div class="step">
+                    <div><span class="who">Recibe los últimos comentarios</span> y empieza a implementar</div>
+                    <div class="empty">espera</div>
+                </div>
+                <div class="again">Refinar se puede repetir todas las veces que haga falta.</div>
+            </div>
+        </div>
+        <p style="font-size: 0.75rem; font-style: italic; margin: 0 0 28px;">Este grafico lo genero fable</p>
+        <p><strong>Solo puedo comentar durante mi/tu turno.</strong> El agente solo puede publicar durante el suyo. Así
+            no reemplaza el plan mientras todavía lo estoy/estas revisando. Los comentarios quedan pendientes hasta que
+            aprieto uno de los botones.</p>
+
+        <h2 id="bloques">Bloques y comentarios</h2>
+        <p>Cada comentario pertenece a un <strong>bloque</strong>, como una sección, un párrafo, una lista o una tabla.
+            Al pasar el mouse, Borrador marca los bloques disponibles. Hago click en uno y escribo el comentario al
+            costado. También puedo dejar comentarios generales.</p>
+        <p>El agente define los bloques a los que se le pueden hacer comentarios en el HTML. Todo elemento con
+            identificador se puede comentar. Puede identificar cada párrafo para recibir comentarios precisos o
+            identificar secciones completas. Los bloques admiten un solo nivel de anidación para evitar selecciones
+            ambiguas.</p>
+        <p>El agente recibe el identificador del bloque, un fragmento de su contenido y el comentario. Así sabe
+            exactamente a qué parte del plan me refiero. El feedback es solo texto.</p>
+        <div class="aside">Borrador muestra el HTML sin modificarlo. El resaltado y el panel de comentarios se agregan
+            al renderizar la página y no forman parte del documento del agente.</div>
+
+        <h2 id="botones">Los dos botones</h2>
+        <div class="buttons">
+            <div class="btn-card"><span class="b refinar">Refinar</span>
+                <p>Envía los comentarios y pide otra versión. Cuando el agente la publica, recupero el turno.</p>
+            </div>
+            <div class="btn-card"><span class="b implementar">Implementar</span>
+                <p>Aprueba el plan y envía los últimos comentarios. El agente publica una versión final si hace falta y
+                    empieza a implementar.</p>
+            </div>
+        </div>
+        <p>La aprobación queda registrada con fecha, aunque el agente esté desconectado. Borrador muestra una
+            advertencia, guarda la decisión y se la entrega cuando vuelva a conectarse.</p>
+        <p>Cuando el agente responde, los comentarios atendidos pasan al historial. Los comentarios nuevos quedan
+            separados. También puedo abrir cualquier versión anterior.</p>
+
+        <h2>Quién habla con quién</h2>
+        <p>Borrador es un servidor pasivo. Guarda proyectos, planes, versiones, comentarios y decisiones. Nunca inicia
+            una conexión con el agente. El agente sube versiones y consulta si hay decisiones pendientes. Puede correr
+            en una laptop detrás de un router sin túneles ni configuración de red.</p>
+        <p>Inicio sesión con Google y genero una clave para los agentes. La clave se muestra una sola vez y les permite
+            publicar en mi nombre. Los proyectos y planes son privados. Si comparto un plan por link, quien lo abra
+            puede leerlo, pero no comentar ni tomar decisiones.</p>
+
+        <h2>Lo que Borrador no hace</h2>
+        <p>No edita planes, compara versiones ni acepta imágenes como feedback. No tiene equipos ni roles. Tampoco
+            inicia conexiones ni recupera sesiones cerradas del agente. Sirve para revisar, comentar y aprobar planes.
+            Nada más.</p>
+
+        <footer>Detalle técnico en <a href="spec.md">spec.md</a>, modelo de datos en <a
+                href="modelo-datos.html">modelo-datos.html</a>, glosario en <a href="../CONTEXT.md">CONTEXT.md</a>.
+        </footer>
+    </div>
+</body>
+
+</html>
