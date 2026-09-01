@@ -1,11 +1,15 @@
 # Borrador — spec
 
+> Modelo de datos detallado: [modelo-datos.html](./modelo-datos.html). Glosario: [CONTEXT.md](../CONTEXT.md).
+
 > Hosting de planes HTML generados por agentes de IA, con feedback humano por turnos que vuelve al agente.
 > App del semestre para Ingeniería de Software 3 (UCC). Stack: Elysia (Bun) + SvelteKit (SPA) + PostgreSQL.
 
 ## Problem Statement
 
 Cuando le pido a un agente de IA (Claude Code u otro) que planifique una tarea, el plan queda en la terminal o en un `.md` dentro del repo. Revisarlo es incómodo: no tiene formato, no puedo marcar "esto sí, esto no" sobre el texto, y para pedir cambios tengo que volver a la terminal y describir con palabras qué parte quiero distinta. Si genero varios planes para varios proyectos, se me pierden.
+
+La mayor parte del tiempo reviso lejos de la compu, desde el celular. Ahí la terminal no existe: para señalar algo tengo que sacar una captura, marcarla y describir el cambio a mano.
 
 Además, cuando el agente termina de generar el plan, la conversación queda cortada: yo reviso por un lado, el agente espera por otro, y no hay un canal para que mi feedback llegue de vuelta sin que yo lo copie a mano.
 
@@ -50,13 +54,13 @@ El servidor es un intermediario pasivo: guarda planes, versiones, comentarios y 
 
 ### Comentarios
 
-18. Como usuario, quiero hacer click sobre un elemento del plan y escribir un comentario, para que quede anclado a esa parte y no tener que describir dónde.
+18. Como usuario, quiero hacer click sobre un bloque del plan (un elemento con `id`) y escribir un comentario, para que quede anclado a esa parte y no tener que describir dónde.
 19. Como usuario, quiero dejar un comentario general sin anclar, para observaciones sobre el plan entero.
 20. Como usuario, quiero ver mis comentarios listados al costado del plan, para repasarlos antes de mandar.
 21. Como usuario, quiero editar o borrar un comentario antes de mandarlo, para corregirme.
 22. Como usuario, quiero que los comentarios persistan si recargo la página, para no perder trabajo.
 23. Como usuario, quiero que solo se pueda comentar cuando es mi turno (`turno_usuario`), para que el agente no reciba comentarios a medio escribir.
-24. Como agente, quiero recibir cada comentario con el selector del elemento y el texto, para saber exactamente a qué se refiere.
+24. Como agente, quiero recibir cada comentario con el `id` del bloque, un fragmento de su texto y el comentario, para saber exactamente a qué se refiere.
 25. Como usuario, quiero ver los comentarios de versiones anteriores marcados como atendidos, para distinguir lo nuevo de lo viejo.
 
 ### Acciones (los botones)
@@ -95,16 +99,22 @@ Toda la lógica de negocio vive en `backend/src/services/` (un módulo por agreg
 
 ### Modelo
 
-- **user** (Better Auth) + `apiKeyHash` (nullable).
+Diagrama y detalle de columnas en [modelo-datos.html](./modelo-datos.html).
+
+- **user** (Better Auth) + `apiKeyHash` y `apiKeyCreadaEl` (nullables).
 - **proyecto**: `id`, `userId`, `nombre` (único por usuario), `creadoEl`.
-- **plan**: `id`, `proyectoId`, `titulo`, `estado` (`turno_usuario` | `turno_agente` | `aprobado`), `viewAccess` (`owner` | `everyone`), `sessionId` (nullable, informativo), `creadoEl`.
-- **version**: `id`, `planId`, `numero` (1..n, único por plan), `contenidoHtml` (texto), `creadaEl`.
-- **comentario**: `id`, `versionId`, `selector` (nullable), `texto`, `atendido`, `creadoEl`.
-- **accion**: `id`, `planId`, `versionId` (la versión que se comentó), `tipo` (`refinar` | `implementar`), `consumida`, `creadaEl`, `consumidaEl`.
+- **plan**: `id`, `proyectoId`, `titulo`, `estado` (`turno_usuario` | `turno_agente` | `aprobado`), `viewAccess` (`owner` | `everyone`), `sessionId` (nullable, informativo), `creadoEl`. La versión actual no es columna: es `MAX(version.numero)`.
+- **version**: `id`, `planId`, `numero` (1..n, `UNIQUE(planId, numero)`, se asigna como `MAX+1` dentro de la transacción), `contenidoHtml` (`text`), `creadaEl`.
+- **comentario**: `id`, `versionId`, `bloqueId` (nullable), `fragmento` (nullable, primeros 150 caracteres de texto del bloque al comentar), `texto`, `atendido`, `creadoEl`. `CHECK`: `bloqueId` y `fragmento` ambos null (comentario general) o ambos con valor.
+- **accion**: `id`, `planId`, `versionId` (la versión que se comentó), `tipo` (`refinar` | `implementar`), `consumida`, `creadaEl`, `consumidaEl`. Índice único parcial `(planId) WHERE consumida = false`: a lo sumo una acción pendiente por plan, garantizado por la BD.
+
+Convenciones: ids `uuid` (aparecen en URLs compartibles, no deben ser enumerables); enums nativos de Postgres; `timestamptz`; columnas en `snake_case`, propiedades TS en camelCase.
 
 Borrados en cascada: proyecto → planes → versiones → comentarios; plan → acciones. Sin papelera.
 
-El HTML se guarda en la BD, no en disco: el único estado del sistema es Postgres.
+El HTML se guarda en la BD como `text` en `version.contenidoHtml`, tal cual lo mandó el agente, sin transformar. No hay disco ni S3: el único estado del sistema es Postgres. TOAST comprime el valor; los listados nunca seleccionan esa columna.
+
+**Bloques.** Un bloque es cualquier elemento del HTML con atributo `id`; es la unidad sobre la que se comenta. El agente decide qué lleva `id` y con qué granularidad. Los bloques pueden anidarse un nivel (un bloque dentro de otro, no más). Esta regla se documenta en la skill del agente; el servidor no la valida, el visor solo hace comentables los primeros dos niveles.
 
 ### Máquina de estados (turnos)
 
@@ -119,7 +129,7 @@ Reglas:
 - Solo puede haber una acción no consumida por plan; una segunda → 409.
 - `resolver` es una transacción: crea la versión nueva si viene HTML, marca la acción consumida, marca `atendido` a todos los comentarios de la versión comentada, y si el tipo era `refinar` pasa el plan a `turno_usuario`.
 - No existe "publicar versión" fuera de `resolver`: después de la v1, el agente solo publica respondiendo a una acción.
-- Un comentario pertenece a una versión; nunca se re-ancla. Los selectores frágiles dejan de ser un problema por diseño.
+- Un comentario pertenece a una versión; nunca se re-ancla. Que un `id` cambie entre versiones no es problema por diseño.
 
 ### API
 
@@ -140,13 +150,13 @@ Planes:
 
 Comentarios (solo dueño, solo en `turno_usuario`):
 - `GET /planes/{id}/comentarios` — de todas las versiones, con `versionNumero` y `atendido`.
-- `POST /planes/{id}/comentarios { selector?, texto }` — sobre la versión actual.
+- `POST /planes/{id}/comentarios { bloqueId?, fragmento?, texto }` — sobre la versión actual. `bloqueId` y `fragmento` van juntos o ninguno.
 - `PUT /comentarios/{id} { texto }`, `DELETE /comentarios/{id}`
 
 Acciones:
 - `POST /planes/{id}/acciones { tipo }` → 201, o 409 si hay una pendiente o no es `turno_usuario`.
 - `GET /planes/{id}/acciones` — historial.
-- `GET /planes/{id}/acciones/siguiente?wait=25` → long-poll (agente). `wait` default 25 s, máximo 55 s. 200 con `{ accionId, tipo, plan: { id, titulo, version }, comentarios: [{ id, selector?, texto }], contenidoUrl }`, o 204 al vencer. Mientras la request está abierta, el servidor registra en memoria que hay un agente escuchando ese plan.
+- `GET /planes/{id}/acciones/siguiente?wait=25` → long-poll (agente). `wait` default 25 s, máximo 55 s. 200 con `{ accionId, tipo, plan: { id, titulo, version }, comentarios: [{ id, bloqueId?, fragmento?, texto }], contenidoUrl }`, o 204 al vencer. Mientras la request está abierta, el servidor registra en memoria que hay un agente escuchando ese plan.
 - `POST /acciones/{id}/resolver { contenidoHtml? }` → 200 `{ version }` (agente).
 
 Cuenta:
@@ -163,8 +173,11 @@ Un plan con `viewAccess = everyone` se puede abrir sin sesión en `/planes/[id]`
 
 ### Visor
 
+El celular es el dispositivo principal de revisión; el desktop es secundario. Todo lo que sigue tiene que funcionar con touch y en una pantalla angosta: los bloques se marcan con tap, no con hover; el panel de comentarios y la barra de acciones se acomodan abajo, no al costado. Los detalles visuales (glass, "despegar") se diseñan para touch primero.
+
+
 - `iframe` con `sandbox="allow-scripts"` (sin `allow-same-origin`), contenido por `srcdoc`.
-- El visor inyecta en el `srcdoc` un script chico que captura clicks, calcula un selector CSS del elemento y lo manda al padre con `postMessage`. El HTML del agente no necesita incluir nada.
+- El visor arma el `srcdoc` como HTML del agente + un `<style>` y un `<script>` propios. El script encuentra los bloques (elementos con `id`, hasta dos niveles), los decora (efecto glass al hover, "se despega" al click, badge con cantidad de comentarios), captura clicks y manda al padre `{ bloqueId, fragmento }` con `postMessage`; el padre le manda la lista de bloques con comentarios. Toda la inyección es del front, en tiempo de render: el back siempre devuelve el HTML crudo y nada se persiste transformado. El agente solo pone ids.
 - Panel lateral con comentarios de la versión actual (editables mientras sea `turno_usuario`) y los atendidos de versiones previas, colapsados.
 - Barra inferior: estado, "agente escuchando" (sí/no), botones Refinar / Implementar, selector de versiones.
 
@@ -213,7 +226,7 @@ Prior art: ninguno en el repo (arranca de cero). Referencia de estilo: tests chi
 - Roles, equipos, múltiples API keys, revocación individual.
 - Comentarios o acciones de personas que no sean el dueño. `everyone` es solo lectura.
 - Diff entre versiones. Solo se listan y se abren.
-- Anotaciones gráficas (flechas, dibujos, resaltados libres). Un comentario es `selector + texto`.
+- Anotaciones gráficas (flechas, dibujos, resaltados libres) y selección de texto dentro de un bloque. Un comentario es `bloque + texto`. El agente recibe siempre texto, nunca imágenes.
 - Webhooks, SSE o cualquier canal en que el servidor llame al agente. Notificaciones al usuario.
 - Revivir una sesión de agente cerrada. Solo se guarda `sessionId`.
 - Almacenamiento fuera de la BD (S3, disco).
