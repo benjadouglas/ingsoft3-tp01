@@ -15,6 +15,8 @@ RUN bun run build
 
 FROM nginx:alpine AS runtime
 
+LABEL org.opencontainers.image.source="https://github.com/benjadouglas/ingsoft3-tp01"
+
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/build /usr/share/nginx/html
 

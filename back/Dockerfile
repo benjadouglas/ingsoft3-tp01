@@ -12,6 +12,8 @@ RUN bun install --frozen-lockfile --production
 
 FROM  oven/bun:1.3-alpine AS runtime
 
+LABEL org.opencontainers.image.source="https://github.com/benjadouglas/ingsoft3-tp01"
+
 WORKDIR /app
 
 ENV NODE_ENV=production
