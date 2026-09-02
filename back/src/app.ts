@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { auth } from "./auth";
 import { generarApiKey, usuarioPorApiKey } from "./services/apiKey";
-import { listarPlanes, obtenerPlan, publicarPlan } from "./services/planes";
+import { listarPlanes, obtenerOCrearProyecto, obtenerPlan, publicarPlan } from "./services/planes";
 
 export const app = new Elysia({ prefix: "/api" })
   .all("/auth/*", ({ request }) => auth.handler(request))
@@ -31,30 +31,34 @@ export const app = new Elysia({ prefix: "/api" })
     { usuario: true },
   )
   .post(
-    "/planes",
-    async ({ body, set }) => {
-      const plan = await publicarPlan(body);
-      set.status = 201;
-      return { id: plan.id, url: `/planes/${plan.id}` };
+    "/proyectos",
+    ({ body, usuario }) => obtenerOCrearProyecto(usuario.id, body.nombre),
+    { body: t.Object({ nombre: t.String({ minLength: 1 }) }), usuario: true },
+  )
+  .post(
+    "/proyectos/:id/planes",
+    async ({ params, body, usuario, status }) => {
+      const plan = await publicarPlan(usuario.id, { proyectoId: params.id, ...body });
+      if (!plan) return status(404, "Proyecto no encontrado");
+      return status(201, { id: plan.id, url: `/planes/${plan.id}`, version: plan.version });
     },
     {
-      body: t.Object({
-        proyecto: t.String({ minLength: 1 }),
-        contenidoHtml: t.String({ minLength: 1 }),
-      }),
+      params: t.Object({ id: t.String({ format: "uuid" }) }),
+      body: t.Object({ titulo: t.String({ minLength: 1 }), contenidoHtml: t.String({ minLength: 1 }) }),
+      usuario: true,
     },
   )
-  .get("/planes", () => listarPlanes())
+  .get("/planes", ({ usuario }) => listarPlanes(usuario.id), { usuario: true })
   .get(
     "/planes/:id",
-    async ({ params, status }) => {
-      const plan = await obtenerPlan(params.id);
+    async ({ params, usuario, status }) => {
+      const plan = await obtenerPlan(usuario.id, params.id);
       if (!plan) return status(404, "Plan no encontrado");
       return new Response(plan.contenidoHtml, {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     },
-    { params: t.Object({ id: t.String({ format: "uuid" }) }) },
+    { params: t.Object({ id: t.String({ format: "uuid" }) }), usuario: true },
   );
 
 export type App = typeof app;
