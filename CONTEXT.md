@@ -1,4 +1,4 @@
-# Borrador
+# htmlplan
 
 Hosting de planes HTML generados por agentes de IA, con feedback humano por turnos que vuelve al agente.
 
@@ -29,7 +29,7 @@ _Avoid_: Repo, workspace, carpeta
 
 **Plan**:
 Un documento HTML que el agente propone y el usuario revisa por turnos. Tiene un estado y una o más versiones.
-_Avoid_: Documento, página, artefacto, borrador
+_Avoid_: Documento, página, artefacto, htmlplan
 
 **Versión**:
 Una publicación inmutable del HTML de un plan, numerada desde 1. La versión actual es la de número más alto.

@@ -1,4 +1,4 @@
-# Borrador — spec
+# htmlplan — spec
 
 > Modelo de datos detallado: [modelo-datos.html](./modelo-datos.html). Glosario: [CONTEXT.md](../CONTEXT.md).
 
@@ -185,11 +185,11 @@ El celular es el dispositivo principal de revisión; el desktop es secundario. T
 
 - Login: Better Auth + Google, `prompt: select_account`, sin email/password.
 - API key: una por usuario ("god key"). Se genera en `/token`, se muestra una vez, se guarda su hash SHA-256 en `user.apiKeyHash`. Regenerar reemplaza el hash (invalida la anterior). Riesgo asumido y documentado: quien tenga la key puede publicar y resolver como el usuario.
-- Del lado del agente, la key vive en `BORRADOR_TOKEN` / `~/.config/borrador/token`, nunca en un repo.
+- Del lado del agente, la key vive en `HTMLPLAN_TOKEN` / `~/.config/htmlplan/token`, nunca en un repo.
 
 ### Cliente agente (fuera del repo)
 
-Una skill de Claude Code (`/serve-html`) con un script que loopea el long-poll, reintenta ante error de red, y termina imprimiendo la acción cuando llega. El agente lo lanza en background, su turno termina, y el harness lo despierta con el resultado. Revivir una sesión cerrada queda fuera de alcance; `plan.sessionId` se guarda para habilitarlo en el futuro. La key vive en `BORRADOR_TOKEN` / `~/.config/borrador/token`, nunca en un repo.
+Una skill de Claude Code (`/serve-html`) con un script que loopea el long-poll, reintenta ante error de red, y termina imprimiendo la acción cuando llega. El agente lo lanza en background, su turno termina, y el harness lo despierta con el resultado. Revivir una sesión cerrada queda fuera de alcance; `plan.sessionId` se guarda para habilitarlo en el futuro. La key vive en `HTMLPLAN_TOKEN` / `~/.config/htmlplan/token`, nunca en un repo.
 
 ## Testing Decisions
 

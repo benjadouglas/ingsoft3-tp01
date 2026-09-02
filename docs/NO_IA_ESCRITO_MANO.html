@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Cómo funciona Borrador</title>
+    <title>Cómo funciona htmlplan</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -323,7 +323,7 @@
         <p>Cuando Claude Code arma un plan, queda en la terminal o en un archivo Markdown del repo. Si estoy fuera de
             casa o lejos de la compu, y quiero corregirle algo que escribio, o señalarle algo, es una fiaca sacarle
             screen, seleccionarle que tiene que cambiar, y describir el cambio</p>
-        <p>Borrador resuelve eso. El agente publica el plan, yo lo comento en el browser y envío todos los comentarios
+        <p>htmlplan resuelve eso. El agente publica el plan, yo lo comento en el browser y envío todos los comentarios
             juntos.</p>
 
         <h2 id="flujo">El flujo</h2>
@@ -378,7 +378,7 @@
 
         <h2 id="bloques">Bloques y comentarios</h2>
         <p>Cada comentario pertenece a un <strong>bloque</strong>, como una sección, un párrafo, una lista o una tabla.
-            Al pasar el mouse, Borrador marca los bloques disponibles. Hago click en uno y escribo el comentario al
+            Al pasar el mouse, htmlplan marca los bloques disponibles. Hago click en uno y escribo el comentario al
             costado. También puedo dejar comentarios generales.</p>
         <p>El agente define los bloques a los que se le pueden hacer comentarios en el HTML. Todo elemento con
             identificador se puede comentar. Puede identificar cada párrafo para recibir comentarios precisos o
@@ -386,7 +386,7 @@
             ambiguas.</p>
         <p>El agente recibe el identificador del bloque, un fragmento de su contenido y el comentario. Así sabe
             exactamente a qué parte del plan me refiero. El feedback es solo texto.</p>
-        <div class="aside">Borrador muestra el HTML sin modificarlo. El resaltado y el panel de comentarios se agregan
+        <div class="aside">htmlplan muestra el HTML sin modificarlo. El resaltado y el panel de comentarios se agregan
             al renderizar la página y no forman parte del documento del agente.</div>
 
         <h2 id="botones">Los dos botones</h2>
@@ -399,20 +399,20 @@
                     empieza a implementar.</p>
             </div>
         </div>
-        <p>La aprobación queda registrada con fecha, aunque el agente esté desconectado. Borrador muestra una
+        <p>La aprobación queda registrada con fecha, aunque el agente esté desconectado. htmlplan muestra una
             advertencia, guarda la decisión y se la entrega cuando vuelva a conectarse.</p>
         <p>Cuando el agente responde, los comentarios atendidos pasan al historial. Los comentarios nuevos quedan
             separados. También puedo abrir cualquier versión anterior.</p>
 
         <h2>Quién habla con quién</h2>
-        <p>Borrador es un servidor pasivo. Guarda proyectos, planes, versiones, comentarios y decisiones. Nunca inicia
+        <p>htmlplan es un servidor pasivo. Guarda proyectos, planes, versiones, comentarios y decisiones. Nunca inicia
             una conexión con el agente. El agente sube versiones y consulta si hay decisiones pendientes. Puede correr
             en una laptop detrás de un router sin túneles ni configuración de red.</p>
         <p>Inicio sesión con Google y genero una clave para los agentes. La clave se muestra una sola vez y les permite
             publicar en mi nombre. Los proyectos y planes son privados. Si comparto un plan por link, quien lo abra
             puede leerlo, pero no comentar ni tomar decisiones.</p>
 
-        <h2>Lo que Borrador no hace</h2>
+        <h2>Lo que htmlplan no hace</h2>
         <p>No edita planes, compara versiones ni acepta imágenes como feedback. No tiene equipos ni roles. Tampoco
             inicia conexiones ni recupera sesiones cerradas del agente. Sirve para revisar, comentar y aprobar planes.
             Nada más.</p>
