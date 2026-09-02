@@ -8,7 +8,7 @@ import * as schema from "./db/schema";
 // BETTER_AUTH_URL apunta al origen del front y el callback de Google es
 // <BETTER_AUTH_URL>/api/auth/callback/google.
 export const auth = betterAuth({
-  appName: "Borrador",
+  appName: "htmlplan",
   database: drizzleAdapter(db, { provider: "pg", schema }),
   emailAndPassword: { enabled: false },
   socialProviders: {
