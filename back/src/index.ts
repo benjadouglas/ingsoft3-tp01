@@ -1,10 +1,7 @@
-import { Elysia } from "elysia";
+import { app } from "./app";
+import { migrar } from "./db";
 
-const app = new Elysia()
-    .get("/", () => "Hello Elysia")
-    .get("/health", "<h1>SERVER UP N RUNNING</h1></br><em>why?</em>")
-    .listen(3000);
+await migrar();
+app.listen(Number(process.env.PORT ?? 3000));
 
-console.log(
-  `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
-);
+console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);
