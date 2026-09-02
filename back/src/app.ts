@@ -1,8 +1,21 @@
 import { Elysia, t } from "elysia";
+import { auth } from "./auth";
 import { listarPlanes, obtenerPlan, publicarPlan } from "./services/planes";
 
 export const app = new Elysia({ prefix: "/api" })
+  .all("/auth/*", ({ request }) => auth.handler(request))
+  // Rutas con `{ usuario: true }` exigen sesión y reciben `usuario` en el contexto.
+  .macro({
+    usuario: {
+      async resolve({ status, request }) {
+        const sesion = await auth.api.getSession({ headers: request.headers });
+        if (!sesion) return status(401);
+        return { usuario: sesion.user };
+      },
+    },
+  })
   .get("/health", () => ({ ok: true }))
+  .get("/me", ({ usuario }) => usuario, { usuario: true })
   .post(
     "/planes",
     async ({ body, set }) => {
