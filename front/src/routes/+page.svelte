@@ -14,5 +14,6 @@
 	<h1 class="mb-4 text-2xl font-semibold">Borrador</h1>
 	<p>Hola, {data.usuario?.name}.</p>
 	<a href="/planes" class="underline">Ver planes</a>
+	<a href="/token" class="ml-4 underline">API key</a>
 	<button class="ml-4 underline" onclick={cerrarSesion}>Cerrar sesión</button>
 </main>
