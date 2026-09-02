@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { publicarPlan } from "./services/planes";
+import { listarPlanes, obtenerPlan, publicarPlan } from "./services/planes";
 
 export const app = new Elysia({ prefix: "/api" })
   .get("/health", () => ({ ok: true }))
@@ -16,6 +16,18 @@ export const app = new Elysia({ prefix: "/api" })
         contenidoHtml: t.String({ minLength: 1 }),
       }),
     },
+  )
+  .get("/planes", () => listarPlanes())
+  .get(
+    "/planes/:id",
+    async ({ params, status }) => {
+      const plan = await obtenerPlan(params.id);
+      if (!plan) return status(404, "Plan no encontrado");
+      return new Response(plan.contenidoHtml, {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
+    },
+    { params: t.Object({ id: t.String({ format: "uuid" }) }) },
   );
 
 export type App = typeof app;
