@@ -8,6 +8,20 @@
       "when": 1788306626121,
       "tag": "0000_mysterious_captain_midlands",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788354380983,
+      "tag": "0001_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788356585202,
+      "tag": "0002_account-issuer",
+      "breakpoints": true
     }
   ]
 }
