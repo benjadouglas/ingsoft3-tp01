@@ -11,8 +11,10 @@
 			{#each data.planes as plan (plan.id)}
 				<li>
 					<a href="/planes/{plan.id}" class="block py-3 hover:underline">
-						<span class="font-mono text-sm">{plan.proyecto}</span>
-						<span class="ml-2 text-sm text-gray-500">{new Date(plan.creadoEl).toLocaleString()}</span>
+						<span class="font-mono text-sm text-gray-500">{plan.proyecto}</span>
+						<span class="ml-2">{plan.titulo}</span>
+						<span class="ml-2 text-sm text-gray-500">v{plan.version}</span>
+						<span class="ml-2 text-sm text-gray-500">{new Date(plan.actualizadoEl).toLocaleString()}</span>
 					</a>
 				</li>
 			{/each}
