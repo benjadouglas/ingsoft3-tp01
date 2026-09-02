@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Instalar dependencias del backend
+        working-directory: back
+        run: bun install --frozen-lockfile
+
+      - name: Instalar dependencias del frontend
+        working-directory: front
+        run: bun install --frozen-lockfile
+      - name: Instalar Chromium para los tests
+        working-directory: front
+        run: bunx playwright install --with-deps chromium
+      - name: Tests del frontend
+        working-directory: front
+        run: bun run test
+      - name: Build del frontend
+        working-directory: front
+        run: bun run build
