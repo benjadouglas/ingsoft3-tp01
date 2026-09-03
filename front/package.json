@@ -25,6 +25,7 @@
 		"@types/node": "^22",
 		"@vitest/browser-playwright": "^4.1.8",
 		"better-auth": "^1.6.23",
+		"bits-ui": "^2.19.0",
 		"clsx": "^2.1.1",
 		"playwright": "^1.60.0",
 		"shadcn-svelte": "^1.6.0",
