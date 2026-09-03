@@ -59,7 +59,7 @@ El servidor es un intermediario pasivo: guarda planes, versiones, comentarios y 
 20. Como usuario, quiero ver mis comentarios listados al costado del plan, para repasarlos antes de mandar.
 21. Como usuario, quiero editar o borrar un comentario antes de mandarlo, para corregirme.
 22. Como usuario, quiero que los comentarios persistan si recargo la página, para no perder trabajo.
-23. Como usuario, quiero que solo se pueda comentar cuando es mi turno (`turno_usuario`), para que el agente no reciba comentarios a medio escribir.
+23. Como usuario, quiero que solo se pueda comentar cuando es mi turno (`user_turn`), para que el agente no reciba comentarios a medio escribir.
 24. Como agente, quiero recibir cada comentario con el `id` del bloque, un fragmento de su texto y el comentario, para saber exactamente a qué se refiere.
 25. Como usuario, quiero ver los comentarios de versiones anteriores marcados como atendidos, para distinguir lo nuevo de lo viejo.
 
@@ -67,8 +67,8 @@ El servidor es un intermediario pasivo: guarda planes, versiones, comentarios y 
 
 26. Como usuario, quiero un botón **Refinar** al pie del plan, para pedirle al agente una nueva versión con mis comentarios.
 27. Como usuario, quiero un botón **Implementar** al pie del plan, para aprobar el plan y que el agente pase a ejecutarlo.
-28. Como usuario, quiero que los botones solo estén habilitados en `turno_usuario`, para no mandar dos veces ni fuera de turno.
-29. Como usuario, quiero que el plan quede `aprobado` en el momento en que aprieto Implementar, para ver el resultado de mi decisión sin depender del agente.
+28. Como usuario, quiero que los botones solo estén habilitados en `user_turn`, para no mandar dos veces ni fuera de turno.
+29. Como usuario, quiero que el plan quede `approved` en el momento en que aprieto Implementar, para ver el resultado de mi decisión sin depender del agente.
 30. Como usuario, quiero ver si hay un agente escuchando este plan, para saber si mi acción va a procesarse ya o va a quedar encolada.
 31. Como agente, quiero pedir "la siguiente acción pendiente" de mi plan y que la request se quede abierta hasta que haya una o venza el timeout, para no hacer polling agresivo.
 32. Como agente, quiero resolver una acción publicando (opcionalmente) una versión nueva en una sola operación, para que no queden estados a medias.
@@ -101,33 +101,33 @@ Toda la lógica de negocio vive en `backend/src/services/` (un módulo por agreg
 
 Diagrama y detalle de columnas en [modelo-datos.html](./modelo-datos.html).
 
-- **user** (Better Auth) + `apiKeyHash` y `apiKeyCreadaEl` (nullables).
-- **proyecto**: `id`, `userId`, `nombre` (único por usuario), `creadoEl`.
-- **plan**: `id`, `proyectoId`, `titulo`, `estado` (`turno_usuario` | `turno_agente` | `aprobado`), `viewAccess` (`owner` | `everyone`), `sessionId` (nullable, informativo), `creadoEl`. La versión actual no es columna: es `MAX(version.numero)`.
-- **version**: `id`, `planId`, `numero` (1..n, `UNIQUE(planId, numero)`, se asigna como `MAX+1` dentro de la transacción), `contenidoHtml` (`text`), `creadaEl`.
-- **comentario**: `id`, `versionId`, `bloqueId` (nullable), `fragmento` (nullable, primeros 150 caracteres de texto del bloque al comentar), `texto`, `atendido`, `creadoEl`. `CHECK`: `bloqueId` y `fragmento` ambos null (comentario general) o ambos con valor.
-- **accion**: `id`, `planId`, `versionId` (la versión que se comentó), `tipo` (`refinar` | `implementar`), `consumida`, `creadaEl`, `consumidaEl`. Índice único parcial `(planId) WHERE consumida = false`: a lo sumo una acción pendiente por plan, garantizado por la BD.
+- **user** (Better Auth) + `api_key_hash` (`UNIQUE`) y `api_key_created_at` (nullables).
+- **project**: `id`, `user_id`, `name` (único por usuario), `created_at`.
+- **plan**: `id`, `project_id`, `title`, `state` (`user_turn` | `agent_turn` | `approved`), `view_access` (`owner` | `everyone`), `session_id` (nullable, informativo), `created_at`. La versión actual no es columna: es `MAX(version.number)`.
+- **version**: `id`, `plan_id`, `number` (1..n, `UNIQUE(plan_id, number)`, se asigna como `MAX+1` dentro de la transacción), `html_content` (`text`), `created_at`.
+- **comment**: `id`, `version_id`, `block_id` (nullable), `fragment` (nullable, primeros 150 caracteres de texto del bloque al comentar), `text`, `attended`, `created_at`. `CHECK`: `block_id` y `fragment` ambos null (comentario general) o ambos con valor.
+- **action**: `id`, `plan_id`, `version_id` (la versión que se comentó), `type` (`refine` | `implement`), `consumed`, `created_at`, `consumed_at`. Índice único parcial `(plan_id) WHERE consumed = false`: a lo sumo una acción pendiente por plan, garantizado por la BD.
 
-Convenciones: ids `uuid` (aparecen en URLs compartibles, no deben ser enumerables); enums nativos de Postgres; `timestamptz`; columnas en `snake_case`, propiedades TS en camelCase.
+Convenciones: ids `uuid` (aparecen en URLs compartibles, no deben ser enumerables); enums nativos de Postgres; `timestamptz`; tablas y columnas en inglés `snake_case`, propiedades TS en camelCase. La API mantiene los nombres en español del contrato (`titulo`, `contenidoHtml`, `estado`…), pero los valores de los enums son los de la BD.
 
-Borrados en cascada: proyecto → planes → versiones → comentarios; plan → acciones. Sin papelera.
+Borrados en cascada: project → plan → version → comment; plan → action. Sin papelera.
 
-El HTML se guarda en la BD como `text` en `version.contenidoHtml`, tal cual lo mandó el agente, sin transformar. No hay disco ni S3: el único estado del sistema es Postgres. TOAST comprime el valor; los listados nunca seleccionan esa columna.
+El HTML se guarda en la BD como `text` en `version.html_content`, tal cual lo mandó el agente, sin transformar. No hay disco ni S3: el único estado del sistema es Postgres. TOAST comprime el valor; los listados nunca seleccionan esa columna.
 
 **Bloques.** Un bloque es cualquier elemento del HTML con atributo `id`; es la unidad sobre la que se comenta. El agente decide qué lleva `id` y con qué granularidad. Los bloques pueden anidarse un nivel (un bloque dentro de otro, no más). Esta regla se documenta en la skill del agente; el servidor no la valida, el visor solo hace comentables los primeros dos niveles.
 
 ### Máquina de estados (turnos)
 
 ```
-POST plan (crea v1) ─────────────────────────────────────▶ turno_usuario
-turno_usuario ──(refinar)──▶ turno_agente ──(resolver: v(n+1))──▶ turno_usuario
-turno_usuario ──(implementar)──▶ aprobado ──(resolver: v(n+1) opcional)──▶ aprobado
+POST plan (crea v1) ──────────────────────────────────▶ user_turn
+user_turn ──(refine)──▶ agent_turn ──(resolver: v(n+1))──▶ user_turn
+user_turn ──(implement)──▶ approved ──(resolver: v(n+1) opcional)──▶ approved
 ```
 
 Reglas:
-- Comentar y crear acciones solo en `turno_usuario`; de lo contrario 409.
+- Comentar y crear acciones solo en `user_turn`; de lo contrario 409.
 - Solo puede haber una acción no consumida por plan; una segunda → 409.
-- `resolver` es una transacción: crea la versión nueva si viene HTML, marca la acción consumida, marca `atendido` a todos los comentarios de la versión comentada, y si el tipo era `refinar` pasa el plan a `turno_usuario`.
+- `resolver` es una transacción: crea la versión nueva si viene HTML, marca la acción consumida, marca `attended` a todos los comentarios de la versión comentada, y si el tipo era `refine` pasa el plan a `user_turn`.
 - No existe "publicar versión" fuera de `resolver`: después de la v1, el agente solo publica respondiendo a una acción.
 - Un comentario pertenece a una versión; nunca se re-ancla. Que un `id` cambie entre versiones no es problema por diseño.
 
@@ -142,19 +142,19 @@ Proyectos:
 
 Planes:
 - `GET /proyectos/{id}/planes` — lista con estado y fecha de última versión.
-- `POST /proyectos/{id}/planes { titulo, contenidoHtml, sessionId? }` → 201 `{ id, url, version: 1 }`. Crea v1 y deja `turno_usuario`.
+- `POST /proyectos/{id}/planes { titulo, contenidoHtml, sessionId? }` → 201 `{ id, url, version: 1 }`. Crea v1 y deja `user_turn`.
 - `GET /planes/{id}` → metadata, estado, `viewAccess`, `versionActual`, `agenteEscuchando`, versiones (número y fecha). Accesible sin sesión si `viewAccess = everyone`.
 - `GET /planes/{id}/versiones/{n}/contenido` → `text/html`. Misma regla de acceso.
 - `PATCH /planes/{id} { titulo?, viewAccess? }`
 - `DELETE /planes/{id}`
 
-Comentarios (solo dueño, solo en `turno_usuario`):
+Comentarios (solo dueño, solo en `user_turn`):
 - `GET /planes/{id}/comentarios` — de todas las versiones, con `versionNumero` y `atendido`.
 - `POST /planes/{id}/comentarios { bloqueId?, fragmento?, texto }` — sobre la versión actual. `bloqueId` y `fragmento` van juntos o ninguno.
 - `PUT /comentarios/{id} { texto }`, `DELETE /comentarios/{id}`
 
 Acciones:
-- `POST /planes/{id}/acciones { tipo }` → 201, o 409 si hay una pendiente o no es `turno_usuario`.
+- `POST /planes/{id}/acciones { tipo }` → 201, o 409 si hay una pendiente o no es `user_turn`.
 - `GET /planes/{id}/acciones` — historial.
 - `GET /planes/{id}/acciones/siguiente?wait=25` → long-poll (agente). `wait` default 25 s, máximo 55 s. 200 con `{ accionId, tipo, plan: { id, titulo, version }, comentarios: [{ id, bloqueId?, fragmento?, texto }], contenidoUrl }`, o 204 al vencer. Mientras la request está abierta, el servidor registra en memoria que hay un agente escuchando ese plan.
 - `POST /acciones/{id}/resolver { contenidoHtml? }` → 200 `{ version }` (agente).
@@ -167,7 +167,7 @@ Operación: `GET /health`.
 
 ### Frontend
 
-SPA con cuatro rutas: `/` (proyectos), `/proyectos/[id]` (planes), `/planes/[id]` (visor), `/token`. Datos vía Eden Treaty en `load` del cliente. El visor hace polling de `GET /planes/{id}` cada 5 s mientras el estado sea `turno_agente` y recarga el iframe cuando cambia `versionActual`.
+SPA con cuatro rutas: `/` (proyectos), `/proyectos/[id]` (planes), `/planes/[id]` (visor), `/token`. Datos vía Eden Treaty en `load` del cliente. El visor hace polling de `GET /planes/{id}` cada 5 s mientras el estado sea `agent_turn` y recarga el iframe cuando cambia `versionActual`.
 
 Un plan con `viewAccess = everyone` se puede abrir sin sesión en `/planes/[id]` (solo lectura: sin panel de comentarios ni botones).
 
@@ -178,13 +178,13 @@ El celular es el dispositivo principal de revisión; el desktop es secundario. T
 
 - `iframe` con `sandbox="allow-scripts"` (sin `allow-same-origin`), contenido por `srcdoc`.
 - El visor arma el `srcdoc` como HTML del agente + un `<style>` y un `<script>` propios. El script encuentra los bloques (elementos con `id`, hasta dos niveles), los decora (efecto glass al hover, "se despega" al click, badge con cantidad de comentarios), captura clicks y manda al padre `{ bloqueId, fragmento }` con `postMessage`; el padre le manda la lista de bloques con comentarios. Toda la inyección es del front, en tiempo de render: el back siempre devuelve el HTML crudo y nada se persiste transformado. El agente solo pone ids.
-- Panel lateral con comentarios de la versión actual (editables mientras sea `turno_usuario`) y los atendidos de versiones previas, colapsados.
+- Panel lateral con comentarios de la versión actual (editables mientras sea `user_turn`) y los atendidos de versiones previas, colapsados.
 - Barra inferior: estado, "agente escuchando" (sí/no), botones Refinar / Implementar, selector de versiones.
 
 ### Autenticación y API key
 
 - Login: Better Auth + Google, `prompt: select_account`, sin email/password.
-- API key: una por usuario ("god key"). Se genera en `/token`, se muestra una vez, se guarda su hash SHA-256 en `user.apiKeyHash`. Regenerar reemplaza el hash (invalida la anterior). Riesgo asumido y documentado: quien tenga la key puede publicar y resolver como el usuario.
+- API key: una por usuario ("god key"). Se genera en `/token`, se muestra una vez, se guarda su hash SHA-256 en `user.api_key_hash`. Regenerar reemplaza el hash (invalida la anterior). Riesgo asumido y documentado: quien tenga la key puede publicar y resolver como el usuario.
 - Del lado del agente, la key vive en `HTMLPLAN_TOKEN` / `~/.config/htmlplan/token`, nunca en un repo.
 
 ### Cliente agente (fuera del repo)
@@ -201,11 +201,11 @@ Vitest (o `bun test`) con `TEST_DATABASE_URL` (el mismo contenedor de dev; en CI
 
 1. Un usuario solo ve/edita sus proyectos y planes (propio → 200, ajeno → 404).
 2. Nombre de proyecto único por usuario; find-or-create devuelve el existente.
-3. Comentar fuera de `turno_usuario` → 409.
-4. Crear acción fuera de `turno_usuario` → 409.
+3. Comentar fuera de `user_turn` → 409.
+4. Crear acción fuera de `user_turn` → 409.
 5. Segunda acción con una pendiente → 409.
-6. `refinar` → `turno_agente`; `implementar` → `aprobado`.
-7. `resolver` con HTML crea versión n+1, consume la acción, atiende los comentarios de la versión comentada, y devuelve el plan a `turno_usuario` si era `refinar`. Todo o nada.
+6. `refine` → `agent_turn`; `implement` → `approved`.
+7. `resolver` con HTML crea versión n+1, consume la acción, atiende los comentarios de la versión comentada, y devuelve el plan a `user_turn` si era `refine`. Todo o nada.
 8. `resolver` sin HTML consume la acción sin crear versión.
 
 Extra, si sobra: long-poll devuelve 204 sin acción y 200 cuando se crea una mientras espera; `everyone` permite leer sin sesión pero no comentar.
@@ -214,7 +214,7 @@ Extra, si sobra: long-poll devuelve 204 sin acción y 200 cuando se crea una mie
 
 Vitest + `@testing-library/svelte`, 4 comportamientos:
 
-1. Botones Refinar / Implementar deshabilitados fuera de `turno_usuario`.
+1. Botones Refinar / Implementar deshabilitados fuera de `user_turn`.
 2. El formulario de comentario no envía con texto vacío.
 3. El selector de versiones muestra n entradas y marca la actual.
 4. El aviso "ningún agente escuchando" aparece cuando `agenteEscuchando` es falso.
