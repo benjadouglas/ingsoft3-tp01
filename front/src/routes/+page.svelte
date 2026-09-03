@@ -1,19 +1,28 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { signOut } from '$lib/auth-client';
-
-	let { data } = $props();
-
-	async function cerrarSesion() {
-		await signOut();
-		await goto('/login');
-	}
+	import * as Card from '$lib/components/ui/card';
+	import { HugeiconsIcon } from '@hugeicons/svelte';
+	import { File01Icon, Key01Icon } from '@hugeicons/core-free-icons';
 </script>
 
-<main class="mx-auto max-w-2xl p-6">
-	<h1 class="mb-4 text-2xl font-semibold">htmlplan</h1>
-	<p>Hola, {data.usuario?.name}.</p>
-	<a href="/planes" class="underline">Ver planes</a>
-	<a href="/token" class="ml-4 underline">API key</a>
-	<button class="ml-4 underline" onclick={cerrarSesion}>Cerrar sesión</button>
+<main class="mx-auto w-full max-w-3xl px-4 py-10">
+	<div class="grid gap-4 sm:grid-cols-2">
+		<a href="/planes" class="group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+			<Card.Root class="h-full transition-colors group-hover:bg-muted/40">
+				<Card.Header>
+					<HugeiconsIcon icon={File01Icon} class="size-5 text-muted-foreground" />
+					<Card.Title class="mt-2">Planes</Card.Title>
+					<Card.Description>Todo lo que el agente publicó, por proyecto.</Card.Description>
+				</Card.Header>
+			</Card.Root>
+		</a>
+		<a href="/token" class="group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+			<Card.Root class="h-full transition-colors group-hover:bg-muted/40">
+				<Card.Header>
+					<HugeiconsIcon icon={Key01Icon} class="size-5 text-muted-foreground" />
+					<Card.Title class="mt-2">API key</Card.Title>
+					<Card.Description>La credencial con la que el agente publica en tu nombre.</Card.Description>
+				</Card.Header>
+			</Card.Root>
+		</a>
+	</div>
 </main>
