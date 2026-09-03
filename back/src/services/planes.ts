@@ -1,69 +1,87 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, max, sql } from "drizzle-orm";
 import { db } from "../db";
-import { plan, proyecto, type Plan } from "../db/schema";
+import { plan, project, version } from "../db/schema";
 
 /** Devuelve el proyecto del usuario con ese nombre, creándolo si no existe. */
 export async function obtenerOCrearProyecto(userId: string, nombre: string) {
     const [fila] = await db
-        .insert(proyecto)
-        .values({ userId, nombre })
+        .insert(project)
+        .values({ userId, name: nombre })
         .onConflictDoUpdate({
-            target: [proyecto.userId, proyecto.nombre],
-            set: { nombre },
+            target: [project.userId, project.name],
+            set: { name: nombre },
         })
-        .returning({ id: proyecto.id, nombre: proyecto.nombre });
+        .returning({ id: project.id, nombre: project.name });
     return fila;
 }
 
+/** Crea un plan nuevo con su versión 1 y lo deja en `user_turn`. */
 export async function publicarPlan(
     userId: string,
-    input: { proyectoId: string; titulo: string; contenidoHtml: string },
-): Promise<Plan | undefined> {
-    const dueño = await db.query.proyecto.findFirst({
+    input: {
+        proyectoId: string;
+        titulo: string;
+        contenidoHtml: string;
+        sessionId?: string;
+    },
+) {
+    const dueño = await db.query.project.findFirst({
         where: and(
-            eq(proyecto.id, input.proyectoId),
-            eq(proyecto.userId, userId),
+            eq(project.id, input.proyectoId),
+            eq(project.userId, userId),
         ),
     });
     if (!dueño) return;
-    const [guardado] = await db
-        .insert(plan)
-        .values(input)
-        .onConflictDoUpdate({
-            target: [plan.proyectoId, plan.titulo],
-            set: {
-                contenidoHtml: input.contenidoHtml,
-                version: sql`${plan.version} + 1`,
-                actualizadoEl: new Date(),
-            },
-        })
-        .returning();
-    return guardado;
+    return db.transaction(async (tx) => {
+        const [creado] = await tx
+            .insert(plan)
+            .values({
+                projectId: input.proyectoId,
+                title: input.titulo,
+                sessionId: input.sessionId,
+            })
+            .returning({ id: plan.id });
+        await tx
+            .insert(version)
+            .values({
+                planId: creado!.id,
+                number: 1,
+                htmlContent: input.contenidoHtml,
+            });
+        return { id: creado!.id, version: 1 };
+    });
 }
 
-export async function obtenerPlan(
+/** HTML de la versión actual del plan, si pertenece al usuario. */
+export async function obtenerHtmlActual(
     userId: string,
     id: string,
-): Promise<Plan | undefined> {
+): Promise<string | undefined> {
     const [fila] = await db
-        .select({ plan })
-        .from(plan)
-        .innerJoin(proyecto, eq(plan.proyectoId, proyecto.id))
-        .where(and(eq(plan.id, id), eq(proyecto.userId, userId)));
-    return fila?.plan;
+        .select({ html: version.htmlContent })
+        .from(version)
+        .innerJoin(plan, eq(version.planId, plan.id))
+        .innerJoin(project, eq(plan.projectId, project.id))
+        .where(and(eq(plan.id, id), eq(project.userId, userId)))
+        .orderBy(desc(version.number))
+        .limit(1);
+    return fila?.html;
 }
 
 export async function listarPlanes(userId: string) {
     return db
         .select({
             id: plan.id,
-            titulo: plan.titulo,
-            proyecto: proyecto.nombre,
-            version: plan.version,
-            actualizadoEl: plan.actualizadoEl,
+            titulo: plan.title,
+            proyecto: project.name,
+            estado: plan.state,
+            version: max(version.number).mapWith(Number),
+            actualizadoEl: sql<string>`max(${version.createdAt})`,
         })
         .from(plan)
-        .innerJoin(proyecto, eq(plan.proyectoId, proyecto.id))
-        .where(eq(proyecto.userId, userId))
-        .orderBy(desc(plan.actualizadoEl));
+        .innerJoin(project, eq(plan.projectId, project.id))
+        .innerJoin(version, eq(version.planId, plan.id))
+        .where(eq(project.userId, userId))
+        .groupBy(plan.id, project.name)
+        .orderBy(desc(sql`max(${version.createdAt})`));
 }

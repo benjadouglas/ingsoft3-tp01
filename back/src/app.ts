@@ -3,8 +3,8 @@ import { auth } from "./auth";
 import { generarApiKey, usuarioPorApiKey } from "./services/apiKey";
 import {
     listarPlanes,
+    obtenerHtmlActual,
     obtenerOCrearProyecto,
-    obtenerPlan,
     publicarPlan,
 } from "./services/planes";
 
@@ -21,7 +21,7 @@ export const app = new Elysia({ prefix: "/api" })
                 const usuario = bearer
                     ? await usuarioPorApiKey(bearer)
                     : (await auth.api.getSession({ headers: request.headers }))
-                        ?.user;
+                          ?.user;
                 if (!usuario) return status(401);
                 return { usuario };
             },
@@ -66,6 +66,7 @@ export const app = new Elysia({ prefix: "/api" })
             body: t.Object({
                 titulo: t.String({ minLength: 1 }),
                 contenidoHtml: t.String({ minLength: 1 }),
+                sessionId: t.Optional(t.String()),
             }),
             usuario: true,
         },
@@ -76,9 +77,9 @@ export const app = new Elysia({ prefix: "/api" })
     .get(
         "/planes/:id",
         async ({ params, usuario, status }) => {
-            const plan = await obtenerPlan(usuario.id, params.id);
-            if (!plan) return status(404, "Plan no encontrado");
-            return new Response(plan.contenidoHtml, {
+            const html = await obtenerHtmlActual(usuario.id, params.id);
+            if (html === undefined) return status(404, "Plan no encontrado");
+            return new Response(html, {
                 headers: { "content-type": "text/html; charset=utf-8" },
             });
         },
@@ -89,4 +90,3 @@ export const app = new Elysia({ prefix: "/api" })
     );
 
 export type App = typeof app;
-
