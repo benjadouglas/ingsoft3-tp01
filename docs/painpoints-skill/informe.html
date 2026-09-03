@@ -342,7 +342,7 @@ So the running Borrador API on port 3000 currently implements only: auth, /healt
 
 <section id="cambios">
   <h2>Cambios propuestos a la skill</h2>
-  <p>Ordenados por cuánto dolor evitan. Todos los de la skill y el script ya están aplicados en <code>skill/</code>; queda el del backend.</p>
+  <p>Ordenados por cuánto dolor evitan. Todos aplicados: los de la skill y el script en <code>skill/</code>, los del backend en <code>back/</code>.</p>
   <ul class="cambios">
     <li><span class="donde">SKILL.md</span><span>Decir dónde está el visor en la variante local (5173) y exigir <code>BORRADOR_URL</code> en la de producción. <span class="hecho">hecho en skill/</span></span></li>
     <li><span class="donde">skill/</span><span>Las carpetas se llaman igual que la skill, así una ruta copiada del texto sigue existiendo. <span class="hecho">hecho en skill/</span></span></li>
@@ -350,7 +350,7 @@ So the running Borrador API on port 3000 currently implements only: auth, /healt
     <li><span class="donde">SKILL.md</span><span>Paso 3 por harness: Monitor persistente donde exista; en el resto, <code>watch</code> con el timeout más largo que permita el harness, re-armado tras cada corte, o pedir al usuario que avise cuando haya actuado. <span class="hecho">hecho en skill/</span></span></li>
     <li><span class="donde">SKILL.md</span><span>Invariante nuevo: si Borrador responde con error en publish o watch, informar al usuario y detenerse. No investigar el servidor ni buscar su código. <span class="hecho">hecho en skill/</span></span></li>
     <li><span class="donde">borrador.sh</span><span>Chequear <code>GET /api/health</code> antes de publicar. Distinguir en <code>watch</code> "plan no encontrado" de "esta instancia no implementa acciones" con un mensaje en castellano. <span class="hecho">hecho en skill/</span></span></li>
-    <li><span class="donde">back</span><span>Implementar los endpoints de acciones que el script ya espera: <code>GET /api/planes/:id/acciones/siguiente</code> y <code>POST /api/acciones/:id/resolver</code>.</span></li>
+    <li><span class="donde">back</span><span>Implementar los endpoints de acciones que el script ya espera: <code>GET /api/planes/:id/acciones/siguiente</code> y <code>POST /api/acciones/:id/resolver</code>. <span class="hecho">hecho en back/</span></span></li>
     <li><span class="donde">SKILL.md</span><span>Reemplazar <code>$ARGUMENTS</code> por lenguaje neutro que cualquier harness entienda. <span class="hecho">hecho en skill/</span></span></li>
   </ul>
 </section>

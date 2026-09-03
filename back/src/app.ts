@@ -2,6 +2,14 @@ import { Elysia, t } from "elysia";
 import { auth } from "./auth";
 import { generarApiKey, usuarioPorApiKey } from "./services/apiKey";
 import {
+    comentar,
+    crearAccion,
+    listarComentarios,
+    obtenerHtmlVersion,
+    resolverAccion,
+    siguienteAccion,
+} from "./services/acciones";
+import {
     listarPlanes,
     obtenerHtmlActual,
     obtenerOCrearProyecto,
@@ -85,6 +93,123 @@ export const app = new Elysia({ prefix: "/api" })
         },
         {
             params: t.Object({ id: t.String({ format: "uuid" }) }),
+            usuario: true,
+        },
+    )
+    .get(
+        "/planes/:id/versiones/:n/contenido",
+        async ({ params, usuario, status }) => {
+            const html = await obtenerHtmlVersion(
+                usuario.id,
+                params.id,
+                params.n,
+            );
+            if (html === undefined) return status(404, "Versión no encontrada");
+            return new Response(html, {
+                headers: { "content-type": "text/html; charset=utf-8" },
+            });
+        },
+        {
+            params: t.Object({
+                id: t.String({ format: "uuid" }),
+                n: t.Integer({ minimum: 1 }),
+            }),
+            usuario: true,
+        },
+    )
+    // Comentarios: solo el dueño, solo en su turno, siempre sobre la versión actual.
+    .get(
+        "/planes/:id/comentarios",
+        async ({ params, usuario, status }) => {
+            const lista = await listarComentarios(usuario.id, params.id);
+            return lista ?? status(404, "Plan no encontrado");
+        },
+        {
+            params: t.Object({ id: t.String({ format: "uuid" }) }),
+            usuario: true,
+        },
+    )
+    .post(
+        "/planes/:id/comentarios",
+        async ({ params, body, usuario, status }) => {
+            const r = await comentar(usuario.id, params.id, body);
+            if (r === "no_encontrado") return status(404, "Plan no encontrado");
+            if (r === "no_es_tu_turno")
+                return status(409, "El plan no está en tu turno");
+            return status(201, r);
+        },
+        {
+            params: t.Object({ id: t.String({ format: "uuid" }) }),
+            body: t.Union([
+                t.Object({ texto: t.String({ minLength: 1 }) }),
+                t.Object({
+                    bloqueId: t.String({ minLength: 1 }),
+                    fragmento: t.String(),
+                    texto: t.String({ minLength: 1 }),
+                }),
+            ]),
+            usuario: true,
+        },
+    )
+    // Acciones: el usuario cierra su turno; el agente espera con long-poll y resuelve.
+    .post(
+        "/planes/:id/acciones",
+        async ({ params, body, usuario, status }) => {
+            const r = await crearAccion(usuario.id, params.id, body.tipo);
+            if (r === "no_encontrado") return status(404, "Plan no encontrado");
+            if (r === "no_es_tu_turno")
+                return status(409, "El plan no está en tu turno");
+            if (r === "pendiente")
+                return status(409, "Ya hay una acción pendiente");
+            return status(201, r);
+        },
+        {
+            params: t.Object({ id: t.String({ format: "uuid" }) }),
+            body: t.Object({
+                tipo: t.Union([t.Literal("refine"), t.Literal("implement")]),
+            }),
+            usuario: true,
+        },
+    )
+    .get(
+        "/planes/:id/acciones/siguiente",
+        async ({ params, query, usuario, status }) => {
+            const r = await siguienteAccion(
+                usuario.id,
+                params.id,
+                (query.wait ?? 25) * 1000,
+            );
+            if (r === undefined) return status(404, "Plan no encontrado");
+            if (r === null) return status(204);
+            return r;
+        },
+        {
+            params: t.Object({ id: t.String({ format: "uuid" }) }),
+            query: t.Object({
+                wait: t.Optional(t.Integer({ minimum: 0, maximum: 55 })),
+            }),
+            usuario: true,
+        },
+    )
+    .post(
+        "/acciones/:id/resolver",
+        async ({ params, body, usuario, status }) => {
+            const r = await resolverAccion(
+                usuario.id,
+                params.id,
+                body.contenidoHtml,
+            );
+            if (r === "no_encontrado")
+                return status(404, "Acción no encontrada");
+            if (r === "ya_resuelta")
+                return status(409, "La acción ya fue resuelta");
+            return r;
+        },
+        {
+            params: t.Object({ id: t.String({ format: "uuid" }) }),
+            body: t.Object({
+                contenidoHtml: t.Optional(t.String({ minLength: 1 })),
+            }),
             usuario: true,
         },
     );

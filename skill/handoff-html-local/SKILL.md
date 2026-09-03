@@ -19,12 +19,12 @@ Publish the plan discussed in this conversation to Borrador and keep the review 
    The script prints one JSON line when an action arrives and exits.
 4. When the event lands, handle it by `tipo` (below), then resolve:
    `scripts/borrador.sh resolve <accionId> [new-html-file]`.
-5. After `refinar`: tell the user what changed and go back to step 3 with the same plan id. After `implementar`: implement the plan; do not watch again.
+5. After `refine`: tell the user what changed and go back to step 3 with the same plan id. After `implement`: implement the plan; do not watch again.
 
 ## The action
 
 ```json
-{ "accionId": "…", "tipo": "refinar" | "implementar",
+{ "accionId": "…", "tipo": "refine" | "implement",
   "plan": { "id": "…", "titulo": "…", "version": 2 },
   "comentarios": [ { "id": "…", "bloqueId": "api", "fragmento": "first chars of the block", "texto": "the request" } ],
   "contenidoUrl": "/api/planes/…/versiones/2/contenido" }
@@ -32,8 +32,8 @@ Publish the plan discussed in this conversation to Borrador and keep the review 
 
 A comment without `bloqueId` is about the whole plan. If your local HTML is gone, `scripts/borrador.sh fetch <contenidoUrl>` prints the current version.
 
-- **refinar**: apply every comment to the HTML, keep block ids stable, resolve with the new file. Resolve without a file only if the comments deliberately need no document change. Never start implementing.
-- **implementar**: the plan is approved. If final comments change it, resolve with the new file; otherwise resolve with none. Then implement.
+- **refine**: apply every comment to the HTML, keep block ids stable, resolve with the new file. Resolve without a file only if the comments deliberately need no document change. Never start implementing.
+- **implement**: the plan is approved. If final comments change it, resolve with the new file; otherwise resolve with none. Then implement.
 
 ## Invariants
 
