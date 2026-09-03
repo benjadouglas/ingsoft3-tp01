@@ -19,6 +19,10 @@ export const user = pgTable("user", {
         .defaultNow()
         .$onUpdate(() => /* @__PURE__ */ new Date())
         .notNull(),
+    // Propias de htmlplan (no las genera Better Auth; conservar al regenerar).
+    // SHA-256 de la API key. Una por usuario; regenerarla reemplaza el hash.
+    apiKeyHash: text("api_key_hash").unique(),
+    apiKeyCreatedAt: timestamp("api_key_created_at", { withTimezone: true }),
 });
 
 export const session = pgTable(
