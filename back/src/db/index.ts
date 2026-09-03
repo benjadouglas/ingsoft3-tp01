@@ -9,5 +9,5 @@ if (!url) throw new Error("Falta DATABASE_URL");
 export const db = drizzle(postgres(url, { onnotice: () => {} }), { schema });
 
 export async function migrar() {
-  await migrate(db, { migrationsFolder: `${import.meta.dir}/../../drizzle` });
+    await migrate(db, { migrationsFolder: `${import.meta.dir}/../../drizzle` });
 }

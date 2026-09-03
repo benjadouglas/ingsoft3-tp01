@@ -13,7 +13,10 @@ export async function generarApiKey(userId: string): Promise<string> {
     await db
         .insert(apiKey)
         .values({ userId, hash })
-        .onConflictDoUpdate({ target: apiKey.userId, set: { hash, creadaEl: new Date() } });
+        .onConflictDoUpdate({
+            target: apiKey.userId,
+            set: { hash, creadaEl: new Date() },
+        });
     return clave;
 }
 

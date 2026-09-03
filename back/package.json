@@ -1,21 +1,21 @@
 {
-  "name": "back",
-  "version": "1.0.50",
-  "scripts": {
-    "test": "bun test",
-    "dev": "bun run --watch src/index.ts",
-    "db:generate": "drizzle-kit generate",
-    "auth:schema": "npx -y auth@1.7.2 generate --config src/auth.ts --output src/db/auth.schema.ts --yes"
-  },
-  "dependencies": {
-    "better-auth": "^1.7.2",
-    "drizzle-orm": "^0.45.2",
-    "elysia": "latest",
-    "postgres": "^3.4.9"
-  },
-  "devDependencies": {
-    "bun-types": "latest",
-    "drizzle-kit": "^0.31.10"
-  },
-  "module": "src/index.ts"
+    "name": "back",
+    "version": "1.0.50",
+    "scripts": {
+        "test": "bun test",
+        "dev": "bun run --watch src/index.ts",
+        "db:generate": "drizzle-kit generate",
+        "auth:schema": "npx -y auth@1.7.2 generate --config src/auth.ts --output src/db/auth.schema.ts --yes"
+    },
+    "dependencies": {
+        "better-auth": "^1.7.2",
+        "drizzle-orm": "^0.45.2",
+        "elysia": "latest",
+        "postgres": "^3.4.9"
+    },
+    "devDependencies": {
+        "bun-types": "latest",
+        "drizzle-kit": "^0.31.10"
+    },
+    "module": "src/index.ts"
 }
