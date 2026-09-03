@@ -52,3 +52,38 @@ La reescribiria como: `Como usuario quiero crear una cuenta para guardar mis pla
 > Uso de IA
 
 Use IA para interpretar la guia, preparar los issues y redactar estas decisiones. La verificacion final consiste en comparar el resultado con los requisitos del TP y revisar la jerarquia, el sprint, el tablero y el cierre automatico de la tarea.
+
+# TP 4
+
+> Estructura del pipeline
+
+1. Dos jobs, `build-back` y `build-front`, uno por Dockerfile. Corren en paralelo porque no dependen entre si y asi el pipeline tarda lo que tarda el mas lento, no la suma. Si uno falla el otro sigue y veo enseguida cual imagen se rompio.
+
+2. Corre en `pull_request` y en `push` a `main`. El PR verifica el cambio antes de entrar. El push verifica el merge final y es lo que alimenta el badge.
+
+> Que cachea
+
+Uso `type=gha` con `mode=max` para guardar tambien las capas de las etapas intermedias. Cada job tiene su propio `scope` para que back y front no se pisen.
+
+- Se reutilizan: `FROM`, `COPY package.json bun.lock` y `RUN bun install` mientras no cambie el lockfile.
+- No se reutilizan: `COPY src` en el back y `COPY . .` + `bun run build` en el front, cualquier cambio de codigo las invalida.
+
+Si el cache desaparece el build no falla, solo tarda mas porque reconstruye todo. Paso de unos 20 segundos por job a mas de un minuto.
+
+> Por que construir con el Dockerfile
+
+Si el pipeline compila por su cuenta con `bun install` y `bun run build` estoy verificando una receta distinta a la que despues se despliega. Puede pasar el pipeline y fallar la imagen. Usando el Dockerfile se verifica exactamente lo que corre en produccion.
+
+> Gate
+
+`main` exige dos cosas para aceptar un merge: PR obligatorio (TP1) y los checks `build-back` y `build-front` en verde, con `strict: true` para que la rama este al dia con `main` antes de mergear. La secuencia rota -> bloqueado -> fix -> verde -> merge esta en el PR #15.
+
+> Problemas encontrados
+
+- El primer intento de romper el build cambio el destino del `COPY` (`./srcc`). Eso no rompe el build, rompe en runtime. Lo cambie por un origen inexistente (`COPY srcc ./src`).
+- La primera corrida en `main` no mostro `CACHED` aunque el PR ya habia subido el cache. El cache de GitHub Actions esta aislado por rama: una corrida solo lee el de su rama o el de `main`. Recien despues del push a `main` los PRs empezaron a reutilizarlo.
+- El workflow del TP3 corria tests. Este TP pide solo build, asi que los saque.
+
+> Uso de IA
+
+Use IA para interpretar la guia, escribir el workflow, hacer la demo del gate y redactar estas decisiones. Lo verifique mirando los logs de Actions (las lineas `CACHED` y el error del build roto), el estado `BLOCKED` del PR y la configuracion de la rama con `gh api`.
