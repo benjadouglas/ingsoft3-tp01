@@ -21,7 +21,7 @@ ENV PORT=3000
 
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY package.json ./
-COPY src ./src
+COPY srcc ./src
 COPY drizzle ./drizzle
 
 USER bun
