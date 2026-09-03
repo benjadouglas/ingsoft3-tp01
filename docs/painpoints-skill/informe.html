@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dónde se trabó el agente · skill handoff-html-local</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #eaeef1;
+    --sheet: #ffffff;
+    --ink: #16213a;
+    --pencil: #66707d;
+    --rule: #cfd6dd;
+    --marker: #ffe94a;
+    --marker-soft: #fff5b8;
+    --pen: #d63a5a;
+    --pen-soft: #fbe3e9;
+    --violet: #574bd1;
+    --violet-soft: #e7e4fa;
+    --ok: #1f8a5b;
+    --ok-soft: #dcf3e7;
+    --display: "Young Serif", Georgia, serif;
+    --body: "Public Sans", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--paper); color: var(--ink); }
+  body {
+    margin: 0;
+    font-family: var(--body);
+    font-size: 1.0625rem;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--violet); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:focus-visible, button:focus-visible { outline: 3px solid var(--violet); outline-offset: 3px; }
+  code, kbd { font-family: var(--mono); font-size: 0.9em; background: #fff; padding: 0.05em 0.35em; border-radius: 3px; border: 1px solid var(--rule); }
+  pre { font-family: var(--mono); font-size: 0.85rem; line-height: 1.5; background: var(--sheet); border: 1px solid var(--rule); border-radius: 4px; padding: 1rem 1.1rem; overflow-x: auto; margin: 1rem 0; }
+  pre code { border: 0; padding: 0; background: none; font-size: inherit; }
+
+  .page { max-width: 74rem; margin: 0 auto; padding: 2.5rem 1.25rem 5rem; }
+
+  /* ---- header ---- */
+  header { display: grid; gap: 1.25rem; padding-bottom: 2.5rem; border-bottom: 2px solid var(--ink); margin-bottom: 2.5rem; }
+  .eyebrow { font-family: var(--mono); font-size: 0.8rem; letter-spacing: 0.02em; color: var(--pencil); margin: 0; }
+  h1 { font-family: var(--display); font-weight: 400; font-size: clamp(2.2rem, 5.5vw, 4.25rem); line-height: 1.02; letter-spacing: -0.015em; margin: 0; max-width: 20ch; }
+  h1 mark { padding: 0 0.15em; }
+  .lede { font-size: 1.2rem; line-height: 1.45; max-width: 58ch; margin: 0; color: var(--ink); }
+
+  /* ---- highlighter: the one signature element ---- */
+  mark {
+    background: linear-gradient(104deg, transparent 1.5%, var(--marker) 3%, var(--marker) 96%, transparent 98%);
+    color: inherit;
+    padding: 0.08em 0.3em;
+    margin: 0 -0.15em;
+    border-radius: 0.25em 0.6em 0.3em 0.5em;
+    -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  }
+
+  /* ---- ficha ---- */
+  .ficha { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--rule); background: var(--sheet); border-radius: 4px; overflow: hidden; }
+  .ficha div { padding: 0.9rem 1rem; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+  .ficha dt { font-family: var(--mono); font-size: 0.72rem; color: var(--pencil); margin-bottom: 0.25rem; }
+  .ficha dd { margin: 0; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .ficha dd small { display: block; font-weight: 400; color: var(--pencil); font-size: 0.85rem; }
+
+  h2 { font-family: var(--display); font-weight: 400; font-size: 1.9rem; line-height: 1.15; margin: 3.5rem 0 1rem; letter-spacing: -0.01em; }
+  h3 { font-family: var(--body); font-weight: 600; font-size: 1.15rem; margin: 0 0 0.4rem; line-height: 1.3; }
+  p { margin: 0 0 1rem; }
+  section > p { max-width: 68ch; }
+
+  /* ---- cronología ---- */
+  .crono { list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--rule); }
+  .crono li { display: grid; grid-template-columns: 5.5rem 1fr; gap: 0.75rem; padding: 0.45rem 0 0.45rem 1.1rem; position: relative; }
+  .crono li::before { content: ""; position: absolute; left: -6px; top: 1.05rem; width: 10px; height: 10px; border-radius: 50%; background: var(--paper); border: 2px solid var(--pencil); }
+  .crono li.hit::before { background: var(--pen); border-color: var(--pen); }
+  .crono time { font-family: var(--mono); font-size: 0.85rem; color: var(--pencil); padding-top: 0.15rem; font-variant-numeric: tabular-nums; }
+  .crono li.hit span { font-weight: 500; }
+
+  /* ---- painpoints: transcript sheet + margin note ---- */
+  .pp { display: grid; grid-template-columns: minmax(0, 1fr) 17rem; gap: 2rem 2.5rem; padding: 2rem 0 2.5rem; border-top: 1px solid var(--rule); }
+  .pp:first-of-type { border-top: 0; }
+  .pp header { display: block; border: 0; margin: 0 0 1.25rem; padding: 0; grid-column: 1 / -1; }
+  .pp header .eyebrow { margin-bottom: 0.5rem; }
+  .pp .cuerpo { min-width: 0; }
+  .pp .margen { font-size: 0.95rem; color: var(--ink); }
+  .pp .margen h4 { font-family: var(--mono); font-size: 0.72rem; font-weight: 500; color: var(--pencil); margin: 1.4rem 0 0.35rem; letter-spacing: 0.02em; }
+  .pp .margen h4:first-child { margin-top: 0; }
+  .pp .margen p { margin: 0 0 0.5rem; }
+  .pp .margen p:last-child { margin-bottom: 0; }
+
+  .sev { display: inline-block; font-family: var(--mono); font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 3px; vertical-align: middle; margin-left: 0.5rem; }
+  .sev.alta { background: var(--pen-soft); color: var(--pen); }
+  .sev.media { background: var(--violet-soft); color: var(--violet); }
+  .sev.baja { background: var(--ok-soft); color: var(--ok); }
+
+  .traza { background: var(--sheet); border: 1px solid var(--rule); border-radius: 4px; padding: 1.1rem 1.25rem 1rem; margin: 0 0 1rem; box-shadow: 0 1px 0 var(--rule); }
+  .traza .quien { font-family: var(--mono); font-size: 0.72rem; color: var(--pencil); margin: 0 0 0.6rem; display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .traza blockquote { margin: 0; font-family: var(--mono); font-size: 0.86rem; line-height: 1.6; color: var(--ink); white-space: pre-wrap; word-wrap: break-word; }
+  .traza.out blockquote { color: var(--pen); }
+  .traza.out .quien { color: var(--pen); }
+  .traza .quien .ok { color: var(--ok); }
+
+  .arreglo { border-left: 3px solid var(--violet); padding: 0.1rem 0 0.1rem 1rem; margin: 1rem 0 0; }
+  .arreglo p { margin: 0 0 0.5rem; }
+  .arreglo p:last-child { margin: 0; }
+
+  /* ---- listas ---- */
+  ul.plain { padding-left: 1.2rem; margin: 0 0 1rem; max-width: 68ch; }
+  ul.plain li { margin-bottom: 0.5rem; }
+  .cambios { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.75rem; max-width: 68ch; }
+  .cambios li { background: var(--sheet); border: 1px solid var(--rule); border-radius: 4px; padding: 0.9rem 1.1rem; display: grid; grid-template-columns: auto 1fr; gap: 0.9rem; align-items: start; }
+  .cambios .donde { font-family: var(--mono); font-size: 0.75rem; color: var(--pencil); padding-top: 0.25rem; white-space: nowrap; }
+  .cambios .hecho { color: var(--ok); font-family: var(--mono); font-size: 0.72rem; margin-left: 0.4rem; }
+
+  table { border-collapse: collapse; width: 100%; max-width: 68ch; font-size: 0.95rem; margin: 0 0 1rem; }
+  th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-family: var(--mono); font-size: 0.72rem; font-weight: 500; color: var(--pencil); }
+  td:first-child { font-family: var(--mono); font-size: 0.85rem; }
+
+  footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--pencil); font-size: 0.9rem; max-width: 68ch; }
+
+  @media (max-width: 860px) {
+    .ficha { grid-template-columns: repeat(2, 1fr); }
+    .pp { grid-template-columns: 1fr; gap: 1.25rem; }
+    .pp .margen { border-top: 1px dashed var(--rule); padding-top: 1rem; }
+    .crono li { grid-template-columns: 4.5rem 1fr; }
+    .cambios li { grid-template-columns: 1fr; gap: 0.3rem; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    header h1 mark { background-size: 0% 100%; background-repeat: no-repeat; animation: pintar 900ms 300ms cubic-bezier(.2,.7,.2,1) forwards; }
+    @keyframes pintar { to { background-size: 100% 100%; } }
+  }
+  @media print { body { font-size: 10.5pt; } .traza { box-shadow: none; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <p class="eyebrow">Informe · skill <code>handoff-html-local</code> · DeepSeek V4 Flash 0731 en opencode · sesión del 3 de septiembre de 2026</p>
+  <h1>Dónde se trabó el agente al <mark>publicar un plan</mark> con la skill</h1>
+  <p class="lede">Le pedimos a un agente que explore <strong>spend-tracker</strong>, arme un plan de features y lo publique en Borrador siguiendo la skill hasta el final. Publicó bien. Después de eso, cada paso de la skill lo obligó a adivinar. Este informe marca en su propio razonamiento los lugares donde eso pasó, y qué cambiar en la skill para que no vuelva a pasar.</p>
+
+  <dl class="ficha">
+    <div><dt>Modelo</dt><dd>deepseek-v4-flash-0731<small>openrouter, variant high</small></dd></div>
+    <div><dt>Harness</dt><dd>opencode 1.18.25<small>run, --auto, sin Monitor</small></dd></div>
+    <div><dt>Duración</dt><dd>2 min 4 s<small>18:02:01 a 18:04:05</small></dd></div>
+    <div><dt>Turnos del asistente</dt><dd>24<small>20 bloques de razonamiento</small></dd></div>
+    <div><dt>Herramientas</dt><dd>29 read · 17 bash<small>1 write · 1 skill · 1 glob</small></dd></div>
+    <div><dt>Tokens de razonamiento</dt><dd>8.844<small>7.919 de salida, 68.292 de entrada</small></dd></div>
+    <div><dt>Costo</dt><dd>US$ 0,023</dd></div>
+    <div><dt>Plan publicado</dt><dd>Próximas features · v1<small>proyecto spend-tracker, 16 bloques comentables</small></dd></div>
+  </dl>
+</header>
+
+<section id="cronologia">
+  <h2>Qué pasó, en orden</h2>
+  <p>La corrida tiene dos mitades. Hasta el minuto uno el agente explora y escribe. Del minuto uno en adelante pelea con la infraestructura. Los puntos rojos son los momentos que analiza este informe.</p>
+  <ul class="crono">
+    <li><time>18:02:01</time><span>Lee el pedido. En su primer razonamiento ya duda sobre la skill antes de cargarla.</span></li>
+    <li><time>18:02:02</time><span>Carga la skill con la tool <code>skill</code> y en paralelo empieza a leer el repo.</span></li>
+    <li><time>18:02:02 → 18:02:24</time><span>Lee 24 archivos de spend-tracker: schema, lib, todos los componentes, git log. Lee también <code>references/html.md</code>.</span></li>
+    <li class="hit"><time>18:02:26</time><span>Antes de escribir, descubre que la tool <strong>Monitor</strong> que exige la skill no existe en opencode.</span></li>
+    <li><time>18:02:55</time><span>Escribe el plan HTML en un directorio temporal, fuera del repo. Cumple el contrato de bloques.</span></li>
+    <li class="hit"><time>18:03:17</time><span>Ejecuta la ruta que la skill hardcodea y falla: <code>no such file or directory</code>.</span></li>
+    <li><time>18:03:22</time><span>Encuentra el script en el directorio base y publica. Versión 1 creada.</span></li>
+    <li class="hit"><time>18:03:27</time><span>Le da al usuario una URL que no abre (puerto de la API, no del visor). Lanza <code>watch</code> con bash bloqueante.</span></li>
+    <li class="hit"><time>18:03:27</time><span>El <code>watch</code> devuelve <code>HTTP 404</code>: el backend local todavía no tiene los endpoints de acciones.</span></li>
+    <li><time>18:03:31 → 18:03:57</time><span>Nueve comandos bash en 30 segundos: busca "borrador" en todo el home, inspecciona procesos con <code>lsof</code>, lee el código fuente de este repo.</span></li>
+    <li><time>18:04:03</time><span>Informa con precisión: publicado, pero el bucle no puede completarse. Pregunta cómo seguir.</span></li>
+  </ul>
+</section>
+
+<section id="painpoints">
+  <h2>Los puntos donde no le quedó claro</h2>
+  <p>Cada uno muestra el razonamiento textual del modelo (extraído de la base SQLite de opencode), qué decía la skill en ese momento, y el cambio que lo evita. Lo resaltado es donde el agente empieza a adivinar.</p>
+
+  <article class="pp" id="pp-monitor">
+    <header>
+      <p class="eyebrow">18:02:26 · antes de escribir el plan</p>
+      <h3>La skill exige una herramienta que el harness no tiene <span class="sev alta">alta</span></h3>
+    </header>
+    <div class="cuerpo">
+      <div class="traza">
+        <p class="quien"><span>razonamiento del modelo</span><span>bloque 8 de 20</span></p>
+        <blockquote>Wait — the Monitor tool. <mark>The system prompt tool list doesn't include a "Monitor" tool!</mark> The skill references `Monitor({ command: ..., persistent: true })`. But I don't have a Monitor tool in my available tools. Hmm. Let me check: The available tools are: bash, edit, glob, grep, read, skill, task, todowrite, webfetch, write. There's no Monitor tool.
+
+The skill says "Wait for the user's action with the Monitor tool, always persistent: true". But that tool isn't available to me. [...] <mark>I need to handle this gracefully.</mark> The skill's workflow step 3 can't be literally executed since I lack the Monitor tool.
+
+[...] I could also check the borrador.sh script for a `watch` mode that works with a persistent bash session, but Bash here is capped at 120s default, though I can set timeout. Actually the skill says "Background Bash is capped at 10 minutes and a non-persistent Monitor dies at 5, so neither works here." So running `borrador.sh watch` as a long-hanging bash command isn't reliable here.
+
+The cleaner path: publish, present the URL to the user, and ask them to review and come back. [...] <mark>But the skill wants me to arm a watcher.</mark></blockquote>
+      </div>
+      <div class="traza">
+        <p class="quien"><span>razonamiento del modelo</span><span>bloque 12 de 20, justo antes del watch</span></p>
+        <blockquote>Now the skill says to wait for the user's action with the Monitor tool, persistent: true [...] I don't have a Monitor tool. <mark>I'll adapt: start the watch in my bash tool with a generous timeout.</mark> [...] I'll set around 8 minutes initially. If it times out, I'll report and re-arm.
+
+Actually, let me reconsider. If I run a blocking watch for 8 min and no action arrives, the conversation sits unused. [...] <mark>The faithful move is to arm the watch in the background. But I have no background mechanism.</mark></blockquote>
+      </div>
+      <p>El agente gastó dos bloques de razonamiento largos, en dos momentos distintos, en el mismo dilema. Terminó ejecutando <code>watch</code> como bash bloqueante con un timeout de nueve minutos, que es exactamente lo que la skill dice que no funciona. Lo hizo igual porque la skill no le dejó ninguna otra opción escrita.</p>
+    </div>
+    <aside class="margen">
+      <h4>qué decía la skill</h4>
+      <p>"Wait for the user's action with the <strong>Monitor</strong> tool, always <code>persistent: true</code>." Y la advertencia de que ni background bash ni un Monitor no persistente sirven.</p>
+      <h4>qué hizo</h4>
+      <p>Improvisó el peor de los caminos que la skill prohíbe, avisando al usuario que podría cortarse.</p>
+      <h4>qué cambiar</h4>
+      <p>Describir la <em>intención</em> del paso (esperar horas una acción, sin bloquear la conversación) y dar la instrucción por harness: Monitor en Claude Code, y una alternativa explícita para los que no lo tienen. Una opción barata es que <code>watch</code> acepte <code>--once</code> y salga con código distinto cuando no hay acción, para que el agente pueda re-armarlo o pedir al usuario que avise.</p>
+    </aside>
+  </article>
+
+  <article class="pp" id="pp-ruta">
+    <header>
+      <p class="eyebrow">18:03:17 · primer intento de publicar</p>
+      <h3>La ruta hardcodeada al script no existe en esta máquina <span class="sev alta">alta</span></h3>
+    </header>
+    <div class="cuerpo">
+      <div class="traza out">
+        <p class="quien"><span>bash</span><span>salida</span></p>
+        <blockquote>$ ~/.agents/skills/handoff-html-local/scripts/borrador.sh publish "spend-tracker" "Próximas features" /var/folders/.../spend-tracker-features.html
+zsh:1: no such file or directory: /Users/benjamindouglas/.agents/skills/handoff-html-local/scripts/borrador.sh</blockquote>
+      </div>
+      <div class="traza">
+        <p class="quien"><span>lo que la tool <code>skill</code> le había dicho 75 segundos antes</span></p>
+        <blockquote>Base directory for this skill: /Users/benjamindouglas/.claude/skills/handoff-html
+Relative paths in this skill (e.g., scripts/, reference/) are relative to this base directory.</blockquote>
+      </div>
+      <p>La skill se llama <code>handoff-html-local</code> en su frontmatter pero está instalada en una carpeta <code>handoff-html</code>. El único lugar donde el SKILL.md escribe una ruta absoluta es el ejemplo del Monitor, y el agente copió esa ruta para todo. Tenía la ruta correcta en contexto desde el principio y la ignoró porque el texto de la skill parecía más autoritativo. Lo resolvió en un intento, pero es un error que aparece en cada máquina donde el nombre de carpeta y el nombre de la skill difieran.</p>
+    </div>
+    <aside class="margen">
+      <h4>qué decía la skill</h4>
+      <p>Paso 2 usa <code>scripts/borrador.sh</code> relativo. Paso 3 usa <code>~/.agents/skills/handoff-html-local/scripts/borrador.sh</code> absoluto. Dos convenciones para el mismo archivo.</p>
+      <h4>qué hizo</h4>
+      <p>Falló, listó <code>~/.claude/skills/handoff-html/scripts/</code>, y reintentó con la ruta real.</p>
+      <h4>qué cambiar</h4>
+      <p>Nunca escribir la ruta absoluta en la skill. Referirse siempre a "<code>scripts/borrador.sh</code> dentro del directorio base que reporta la tool". En el repo, las carpetas ya llevan el mismo nombre que la skill (<code>skill/handoff-html-local</code>, <code>skill/handoff-html</code>) para que el problema no exista aunque alguien copie la ruta.</p>
+    </aside>
+  </article>
+
+  <article class="pp" id="pp-url">
+    <header>
+      <p class="eyebrow">18:03:25 · después de publicar</p>
+      <h3>La URL que le dio al usuario no abre <span class="sev media">media</span></h3>
+    </header>
+    <div class="cuerpo">
+      <div class="traza">
+        <p class="quien"><span>razonamiento del modelo</span><span>bloque 11 de 20</span></p>
+        <blockquote>Published. <mark>The URL is relative to BORRADOR_URL (default http://localhost:3000). So the full URL is http://localhost:3000/planes/a24c0e23-…</mark></blockquote>
+      </div>
+      <div class="traza out">
+        <p class="quien"><span>bash, 9 segundos después</span><span>salida</span></p>
+        <blockquote>$ curl --silent "http://localhost:3000/planes/a24c0e23-…" -o /dev/null -w "%{http_code}"
+404</blockquote>
+      </div>
+      <p>La API devuelve <code>url: "/planes/&lt;id&gt;"</code>, relativa. En dev la API escucha en el 3000 y el visor en el 5173, así que la resolución "obvia" da una página inexistente. El agente incluso comprobó que esa URL daba 404 mientras investigaba el otro error, y aun así la dejó en su mensaje final al usuario. Es el tipo de dato que la skill debería entregar resuelto, no dejar a la inferencia.</p>
+    </div>
+    <aside class="margen">
+      <h4>qué decía la skill</h4>
+      <p>"Give the user the returned <code>url</code>." Nada sobre a qué origen pertenece.</p>
+      <h4>qué hizo</h4>
+      <p>Prefijó la URL con la base de la API. La URL correcta era <code>http://localhost:5173/planes/a24c0e23-…</code>.</p>
+      <h4>qué cambiar</h4>
+      <p>La opción robusta es que el backend devuelva la URL absoluta del visor. Mientras tanto, la variante local de la skill en este repo ya dice explícitamente que el visor está en el 5173.</p>
+    </aside>
+  </article>
+
+  <article class="pp" id="pp-404">
+    <header>
+      <p class="eyebrow">18:03:27 → 18:03:57 · el watch falla</p>
+      <h3>Un 404 sin contexto lo mandó a investigar toda la máquina <span class="sev alta">alta</span></h3>
+    </header>
+    <div class="cuerpo">
+      <div class="traza out">
+        <p class="quien"><span>bash</span><span>salida del watch</span></p>
+        <blockquote>borrador: HTTP 404
+NOT_FOUND</blockquote>
+      </div>
+      <div class="traza">
+        <p class="quien"><span>razonamiento del modelo</span><span>bloques 13 a 18, en 30 segundos</span></p>
+        <blockquote>Maybe the watch endpoint requires a different route, or the plan is under a project slug. [...] <mark>Let me find it and check its API routes.</mark>
+
+Odd — even `/api/proyectos` with the token returns 404. [...] So the server on localhost:3000 <mark>may be the spend-tracker dev server (whose default port is 3000!)</mark> rather than Borrador.
+
+Port 3000 is a bun server running <mark>an unrelated project (`ingsoft3-tp01/back`), NOT Borrador!</mark> The publish "succeeded" because... wait [...]
+
+Very interesting — <mark>this IS Borrador!</mark> The project `ingsoft3-tp01/back` is the Borrador API [...]
+
+So the running Borrador API on port 3000 currently implements only: auth, /health, /me, /token, /proyectos (POST), /proyectos/:id/planes (POST), /planes (GET list), /planes/:id (GET html). <mark>It does NOT have the `acciones/siguiente` or `resolver` endpoints yet!</mark></blockquote>
+      </div>
+      <p>El diagnóstico final es correcto: el backend local de este repo todavía no implementa las acciones. Pero para llegar ahí el agente corrió <code>mdfind</code> sobre todo el home, hizo <code>lsof</code> de procesos ajenos, leyó <code>index.ts</code> y <code>app.ts</code> de otro repositorio, y cambió de hipótesis tres veces. Nada en la skill le decía que ante un fallo del servidor tiene que <em>parar y reportar</em>, así que hizo lo que hace un agente con bash y sin límites: investigar. En un entorno con datos sensibles, ese comportamiento es el problema, no el 404.</p>
+    </div>
+    <aside class="margen">
+      <h4>qué decía la skill</h4>
+      <p>Solo hay una regla para fallos: la del <code>resolve</code> ambiguo. Para <code>watch</code> o <code>publish</code> que fallan, nada.</p>
+      <h4>qué hizo</h4>
+      <p>Nueve comandos, tres hipótesis, un diagnóstico correcto y un reporte honesto al final.</p>
+      <h4>qué cambiar</h4>
+      <p>Dos cosas. El script debe distinguir "plan no encontrado" de "esta instancia no soporta acciones" con un mensaje humano, y el backend debería responder algo mejor que <code>NOT_FOUND</code> genérico. Y la skill necesita un invariante nuevo: si Borrador responde con error, informar al usuario y detenerse. No inspeccionar el servidor, ni buscar su código.</p>
+    </aside>
+  </article>
+
+  <article class="pp" id="pp-puerto">
+    <header>
+      <p class="eyebrow">18:02:01 y 18:03:36 · dos dudas menores</p>
+      <h3>Suposiciones sueltas que la skill podría cerrar <span class="sev baja">baja</span></h3>
+    </header>
+    <div class="cuerpo">
+      <div class="traza">
+        <p class="quien"><span>razonamiento del modelo</span><span>bloque 1, antes de cargar la skill</span></p>
+        <blockquote>First, let me load the handoff-html-local skill to understand the flow, and explore the project in parallel.
+
+<mark>Actually, the skill says "markdown" flow.</mark> Let me load the skill first to understand what it requires.</blockquote>
+      </div>
+      <div class="traza">
+        <p class="quien"><span>razonamiento del modelo</span><span>bloque 15</span></p>
+        <blockquote>Indeed the skill description for handoff-html-local says "(Local dev, Borrador at localhost:3000)". <mark>But the spend-tracker Next dev server also uses 3000.</mark></blockquote>
+      </div>
+      <p>La primera es una alucinación inofensiva: inventó que la skill hablaba de markdown antes de leerla, y la lectura la corrigió. La segunda es una ambigüedad real de la variante local: el puerto por defecto de la API coincide con el puerto por defecto de Next, Vite y medio ecosistema. En una sesión donde spend-tracker sí estuviera corriendo, el <code>publish</code> habría pegado contra la app equivocada y el error sería mucho más confuso.</p>
+      <p>Hay una tercera suposición que esta vez no explotó: la skill dice "take project and title from <code>$ARGUMENTS</code>", pero opencode no sustituye esa variable. Como el pedido traía proyecto y título en el texto, el agente no la necesitó.</p>
+    </div>
+    <aside class="margen">
+      <h4>qué cambiar</h4>
+      <p>Que la descripción de la variante local nombre el puerto de la API y el del visor. Que el script verifique con <code>GET /api/health</code> antes de publicar y falle con un mensaje claro si lo que responde no es Borrador. Y reemplazar <code>$ARGUMENTS</code> por una frase que sirva en cualquier harness: "toma proyecto y título de lo que pidió el usuario".</p>
+    </aside>
+  </article>
+</section>
+
+<section id="bien">
+  <h2>Lo que la skill sí dejó claro</h2>
+  <p>Vale registrarlo, porque marca qué partes del texto funcionan y no hay que tocar.</p>
+  <ul class="plain">
+    <li><strong>El contrato del HTML.</strong> Leyó <code>references/html.md</code> sin que se lo pidieran y el plan cumple: 16 bloques con ids semánticos, dos niveles como máximo, sin scripts, sin formularios, sin assets externos.</li>
+    <li><strong>El archivo fuera del repo.</strong> Escribió en el directorio temporal del sistema, como pide el paso 1.</li>
+    <li><strong>El orden publish y luego watch.</strong> No intentó publicar dos veces ni crear un segundo plan cuando falló el watch.</li>
+    <li><strong>El reporte honesto.</strong> Su mensaje final separa lo que funcionó de lo que no y pregunta cómo seguir, en vez de dar por cerrado el flujo.</li>
+    <li><strong>El plan en sí.</strong> Tres tandas priorizadas, un backlog y una lista explícita de lo que queda afuera. Está en el proyecto spend-tracker de Borrador, plan <code>a24c0e23-e7d4-48c7-a48c-9f1e31d19ed5</code>.</li>
+  </ul>
+</section>
+
+<section id="cambios">
+  <h2>Cambios propuestos a la skill</h2>
+  <p>Ordenados por cuánto dolor evitan. Todos los de la skill y el script ya están aplicados en <code>skill/</code>; queda el del backend.</p>
+  <ul class="cambios">
+    <li><span class="donde">SKILL.md</span><span>Decir dónde está el visor en la variante local (5173) y exigir <code>BORRADOR_URL</code> en la de producción. <span class="hecho">hecho en skill/</span></span></li>
+    <li><span class="donde">skill/</span><span>Las carpetas se llaman igual que la skill, así una ruta copiada del texto sigue existiendo. <span class="hecho">hecho en skill/</span></span></li>
+    <li><span class="donde">SKILL.md</span><span>Quitar la ruta absoluta del ejemplo de Monitor. Hablar siempre de <code>scripts/borrador.sh</code> relativo al directorio base que reporta la tool. <span class="hecho">hecho en skill/</span></span></li>
+    <li><span class="donde">SKILL.md</span><span>Paso 3 por harness: Monitor persistente donde exista; en el resto, <code>watch</code> con el timeout más largo que permita el harness, re-armado tras cada corte, o pedir al usuario que avise cuando haya actuado. <span class="hecho">hecho en skill/</span></span></li>
+    <li><span class="donde">SKILL.md</span><span>Invariante nuevo: si Borrador responde con error en publish o watch, informar al usuario y detenerse. No investigar el servidor ni buscar su código. <span class="hecho">hecho en skill/</span></span></li>
+    <li><span class="donde">borrador.sh</span><span>Chequear <code>GET /api/health</code> antes de publicar. Distinguir en <code>watch</code> "plan no encontrado" de "esta instancia no implementa acciones" con un mensaje en castellano. <span class="hecho">hecho en skill/</span></span></li>
+    <li><span class="donde">back</span><span>Implementar los endpoints de acciones que el script ya espera: <code>GET /api/planes/:id/acciones/siguiente</code> y <code>POST /api/acciones/:id/resolver</code>.</span></li>
+    <li><span class="donde">SKILL.md</span><span>Reemplazar <code>$ARGUMENTS</code> por lenguaje neutro que cualquier harness entienda. <span class="hecho">hecho en skill/</span></span></li>
+  </ul>
+</section>
+
+<section id="metodo">
+  <h2>Cómo se obtuvo el razonamiento</h2>
+  <p>opencode guarda cada sesión en una base SQLite local. Los bloques de razonamiento, el texto y las llamadas a herramientas son filas de la tabla <code>part</code>, con el contenido en una columna JSON. DeepSeek V4 Flash expone sus tokens de razonamiento, así que la columna <code>text</code> de las partes de tipo <code>reasoning</code> trae el pensamiento completo, no un resumen.</p>
+  <table>
+    <thead><tr><th>Qué</th><th>Dónde</th></tr></thead>
+    <tbody>
+      <tr><td>base</td><td><code>~/.local/share/opencode/opencode.db</code></td></tr>
+      <tr><td>sesión</td><td><code>ses_f96ebf002ffeCxbuAUDKibzDK7</code>, título "handoff spend-tracker features"</td></tr>
+      <tr><td>tablas</td><td><code>session</code> (modelo, tokens), <code>message</code> (rol, costo por turno), <code>part</code> (reasoning, text, tool con input y output)</td></tr>
+      <tr><td>script</td><td><code>docs/painpoints-skill/extraer-sesion.sh</code>: sin argumentos lista sesiones, con un id vuelca la línea de tiempo en markdown</td></tr>
+    </tbody>
+  </table>
+  <p>La consulta central, reducida a lo esencial:</p>
+<pre><code>select json_extract(m.data,'$.role')     as role,
+       json_extract(p.data,'$.type')     as type,
+       json_extract(p.data,'$.tool')     as tool,
+       json_extract(p.data,'$.text')     as text,
+       json_extract(p.data,'$.state.input')  as input,
+       json_extract(p.data,'$.state.output') as output
+from part p join message m on m.id = p.message_id
+where p.session_id = 'ses_f96ebf002ffeCxbuAUDKibzDK7'
+  and type in ('reasoning','text','tool')
+order by p.time_created, p.id;</code></pre>
+  <p>La corrida se lanzó con <code>opencode run</code> en el directorio de spend-tracker, con el modelo <code>openrouter/deepseek/deepseek-v4-flash-0731</code>, variant <code>high</code> y permisos automáticos. La API key de Borrador estaba en <code>~/.config/borrador/token</code>, que es donde el script la busca. El backend y el visor de Borrador corrían localmente desde este repo.</p>
+</section>
+
+<footer>
+  <p>Informe generado el 3 de septiembre de 2026 a partir de una única corrida. Una sola sesión alcanza para ver dónde el texto de la skill deja huecos, pero no para medir frecuencias: los tiempos y conteos describen esta corrida y no un promedio.</p>
+</footer>
+
+</div>
+</body>
+</html>
