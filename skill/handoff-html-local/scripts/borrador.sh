@@ -4,6 +4,9 @@ set -euo pipefail
 
 base_url="${BORRADOR_URL:-http://localhost:3000}"
 base_url="${base_url%/}"
+# El visor (front) puede vivir en otro origen que la API; en dev es el server de Vite.
+app_url="${BORRADOR_APP_URL:-http://localhost:5173}"
+app_url="${app_url%/}"
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 
@@ -12,11 +15,12 @@ die() { echo "borrador: $*" >&2; exit 1; }
 usage() {
   cat >&2 <<'USAGE'
 uso:
-  borrador.sh publish <proyecto> <titulo> <html-file>   crea el plan (v1), imprime {id,url,version}
+  borrador.sh publish <proyecto> <titulo> <html-file>   crea el plan (v1), imprime {id,url,version}; url es el link absoluto al visor
   borrador.sh watch   <plan-id>                          long-poll; imprime la acción como una línea JSON y sale
   borrador.sh fetch   <contenido-url>                    imprime el HTML de una versión (URL relativa a BORRADOR_URL)
   borrador.sh resolve <accion-id> [html-file]            resuelve la acción, con o sin versión nueva
-env: BORRADOR_URL (default http://localhost:3000), BORRADOR_TOKEN o ~/.config/borrador/token
+env: BORRADOR_URL (API, default http://localhost:3000), BORRADOR_APP_URL (visor, default http://localhost:5173),
+     BORRADOR_TOKEN o ~/.config/borrador/token
 USAGE
   exit 1
 }
@@ -37,13 +41,23 @@ ok() {
   exit 1
 }
 
+# Verifica que en $base_url responde Borrador y que el token sirve, antes de tocar nada.
+check_server() {
+  local status; status="$(http GET /api/health)"
+  [[ "$status" == 200 ]] && jq -e '.ok == true' "$tmp" >/dev/null 2>&1 \
+    || die "en $base_url no responde Borrador (GET /api/health -> HTTP $status). Revisá BORRADOR_URL y que el servidor esté levantado."
+  status="$(http GET /api/me)"
+  [[ "$status" == 200 ]] || die "la API key no es válida para $base_url (GET /api/me -> HTTP $status). Regenerala desde la app y guardala en ~/.config/borrador/token."
+}
+
 publish() {
   [[ $# -eq 3 && -r "$3" ]] || usage
+  check_server
   ok "$(http POST /api/proyectos "$(jq -cn --arg nombre "$1" '{nombre:$nombre}')")"
   local proyecto_id; proyecto_id="$(jq -er .id "$tmp")"
   ok "$(http POST "/api/proyectos/$proyecto_id/planes" \
     "$(jq -cn --arg titulo "$2" --rawfile html "$3" '{titulo:$titulo, contenidoHtml:$html}')")"
-  jq -c . "$tmp"
+  jq -c --arg app "$app_url" '.url = $app + .url' "$tmp"
 }
 
 watch() {
@@ -54,7 +68,13 @@ watch() {
     case "$status" in
       200) jq -c . "$tmp"; return ;;
       204) ;;
-      401|403|404) ok "$status" ;;
+      404)
+        # ¿No existe el plan, o esta instancia todavía no implementa acciones?
+        if [[ "$(http GET "/api/planes/$1")" == 200 ]]; then
+          die "el plan $1 existe pero esta instancia de Borrador no implementa acciones (watch/resolve). El plan quedó publicado; informale al usuario y detenete."
+        fi
+        die "plan $1 no encontrado en $base_url" ;;
+      401|403) ok "$status" ;;
       *) sleep 3 ;;
     esac
   done
