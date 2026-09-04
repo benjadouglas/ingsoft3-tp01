@@ -55,14 +55,12 @@ export const app = new Elysia({ prefix: "/api" })
             body: t.Object({
                 proyecto: t.String({ minLength: 1 }),
                 contenidoHtml: t.String({ minLength: 1 }),
-                sesion: t.Optional(
-                    t.Object({
-                        harness: t.String({ minLength: 1 }),
-                        id: t.Optional(t.String({ minLength: 1 })),
-                        titulo: t.Optional(t.String({ minLength: 1 })),
-                        directorio: t.Optional(t.String({ minLength: 1 })),
-                    }),
-                ),
+                sesion: t.Object({
+                    harness: t.String({ minLength: 1 }),
+                    id: t.String({ minLength: 1 }),
+                    titulo: t.Optional(t.String({ minLength: 1 })),
+                    directorio: t.Optional(t.String({ minLength: 1 })),
+                }),
             }),
             usuario: true,
         },
@@ -167,14 +165,19 @@ export const app = new Elysia({ prefix: "/api" })
                 usuario.id,
                 params.id,
                 (query.wait ?? 25) * 1000,
+                query,
             );
             if (r === undefined) return status(404, "Plan no encontrado");
+            if (r === "otra_sesion")
+                return status(403, "El plan pertenece a otra sesión");
             if (r === null) return status(204);
             return r;
         },
         {
             params: t.Object({ id: t.String({ format: "uuid" }) }),
             query: t.Object({
+                harness: t.String({ minLength: 1 }),
+                id: t.String({ minLength: 1 }),
                 wait: t.Optional(t.Integer({ minimum: 0, maximum: 55 })),
             }),
             usuario: true,
@@ -188,15 +191,24 @@ export const app = new Elysia({ prefix: "/api" })
                 usuario.id,
                 params.id,
                 body.contenidoHtml,
+                body.sesion,
             );
             if (r === "no_encontrado") return status(404, "Plan no encontrado");
+            if (r === "otra_sesion")
+                return status(403, "El plan pertenece a otra sesión");
             if (r === "no_es_tu_turno")
                 return status(409, "El plan no está en turno del agente");
             return r;
         },
         {
             params: t.Object({ id: t.String({ format: "uuid" }) }),
-            body: t.Object({ contenidoHtml: t.String({ minLength: 1 }) }),
+            body: t.Object({
+                contenidoHtml: t.String({ minLength: 1 }),
+                sesion: t.Object({
+                    harness: t.String({ minLength: 1 }),
+                    id: t.String({ minLength: 1 }),
+                }),
+            }),
             usuario: true,
         },
     );

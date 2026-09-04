@@ -142,7 +142,7 @@ Proyectos:
 
 Planes:
 - `GET /proyectos/{id}/planes` — lista con estado y fecha de última versión.
-- `POST /proyectos/{id}/planes { titulo, contenidoHtml, sesion?: { harness, id?, titulo?, directorio? } }` → 201 `{ id, url, version: 1 }`. Crea v1 y deja `user_turn`.
+- `POST /proyectos/{id}/planes { titulo, contenidoHtml, sesion: { harness, id, titulo?, directorio? } }` → 201 `{ id, url, version: 1 }`. Crea v1 y deja `user_turn`.
 - `GET /planes/{id}` → metadata, estado, `viewAccess`, `versionActual`, `agenteEscuchando`, versiones (número y fecha). Accesible sin sesión si `viewAccess = everyone`.
 - `GET /planes/{id}/versiones/{n}/contenido` → `text/html`. Misma regla de acceso.
 - `PATCH /planes/{id} { titulo?, viewAccess? }`
@@ -156,7 +156,7 @@ Comentarios (solo dueño, solo en `user_turn`):
 Acciones:
 - `POST /planes/{id}/acciones { tipo }` → 201, o 409 si hay una pendiente o no es `user_turn`.
 - `GET /planes/{id}/acciones` — historial.
-- `GET /planes/{id}/acciones/siguiente?wait=25` → long-poll (agente). `wait` default 25 s, máximo 55 s. 200 con `{ accionId, tipo, plan: { id, titulo, version }, comentarios: [{ id, bloqueId?, fragmento?, texto }], contenidoUrl }`, o 204 al vencer. Mientras la request está abierta, el servidor registra en memoria que hay un agente escuchando ese plan.
+- `GET /planes/{id}/acciones/siguiente?wait=25&harness=codex&id=<sesion>` → long-poll (agente). `wait` default 25 s, máximo 55 s. 200 con `{ accionId, tipo, plan: { id, titulo, version }, comentarios: [{ id, bloqueId?, fragmento?, texto }], contenidoUrl }`, o 204 al vencer. Mientras la request está abierta, el servidor registra en memoria que hay un agente escuchando ese plan.
 - `POST /acciones/{id}/resolver { contenidoHtml? }` → 200 `{ version }` (agente).
 
 Cuenta:
@@ -189,7 +189,7 @@ El celular es el dispositivo principal de revisión; el desktop es secundario. T
 
 ### Cliente agente (fuera del repo)
 
-Una skill de Claude Code (`/serve-html`) con un script que loopea el long-poll, reintenta ante error de red, y termina imprimiendo la acción cuando llega. El agente lo lanza en background, su turno termina, y el harness lo despierta con el resultado. Si la espera muere (Monitor cerrado, sesión reabierta), volver a correr `wait` recupera la acción pendiente: el servidor no la consume hasta la versión siguiente. El script detecta el harness y el id de sesión por entorno y, en Claude Code y Codex, lee título y directorio de sus logs locales (`~/.claude/projects/*/<id>.jsonl`, `~/.codex/session_index.jsonl` y el rollout); sin directorio detectado guarda la raíz del repo. El visor muestra, cuando el turno es del agente, un botón "Reanudar": para Claude Code y Codex el comando de CLI (`cd <dir> && claude --resume <id>`, `cd <dir> && codex resume <id>`) o el título a buscar en la GUI; para cualquier otro harness un prompt para pegarle a un agente nuevo en el repo, que retoma con `wait`. La key vive en `HTMLPLAN_TOKEN` / `~/.config/htmlplan/token`, nunca en un repo.
+Una skill de Claude Code (`/serve-html`) con un script que loopea el long-poll, reintenta ante error de red, y termina imprimiendo la acción cuando llega. El agente lo lanza en background, su turno termina, y el harness lo despierta con el resultado. Si la espera muere (Monitor cerrado, sesión reabierta), volver a correr `wait` recupera la acción pendiente: el servidor no la consume hasta la versión siguiente. El script detecta el harness y el id de sesión por entorno y, en Claude Code y Codex, lee título y directorio de sus logs locales (`~/.claude/projects/*/<id>.jsonl`, `~/.codex/session_index.jsonl` y el rollout); sin directorio detectado guarda la raíz del repo. El visor muestra, cuando el turno es del agente, un botón "Reanudar": para Claude Code y Codex el comando de CLI (`cd <dir> && claude --resume <id>`, `cd <dir> && codex resume <id>`) o el título a buscar en la GUI; para cualquier otro harness un prompt para pegar en la conversación original, que retoma con `wait`. La key vive en `HTMLPLAN_TOKEN` / `~/.config/htmlplan/token`, nunca en un repo.
 
 ## Testing Decisions
 
@@ -239,4 +239,5 @@ Prior art: ninguno en el repo (arranca de cero). Referencia de estilo: tests chi
 - **Por qué dos servicios**: se consultó a la cátedra sobre un único módulo SvelteKit; la respuesta fue que se acepta pero se desaconseja, porque el TP2 evalúa justamente cómo se encuentran dos contenedores (frontend → backend por nombre, vía proxy) y cómo un pipeline construye dos artefactos en paralelo. Backend y frontend separados desde el inicio.
 - **Por qué Elysia**: tipos de punta a punta con Eden sin generación de código, validación de input integrada, y se testea en proceso con `handle`. Bun porque es el runtime que Elysia asume.
 - **Dependencia externa**: Google OAuth. Es la única API de terceros; es gratis y estable, y el login no está en el camino crítico de ningún test.
+- **Decisión de producto**: un plan pertenece a la sesión que lo publicó. `POST /planes/{id}/versiones` y `GET /planes/{id}/acciones/siguiente` exigen `{ harness, id }` y responden 403 si no coinciden; el script guarda su estado por servidor, repo, harness y sesión, así dos agentes sobre el mismo tema en el mismo repo nunca comparten plan.
 - **Decisión de producto**: el agente se despierta por *acción*, no por *comentario*, y el usuario solo comenta en su turno. Eso elimina las condiciones de carrera entre "estoy comentando" y "el agente ya regeneró".

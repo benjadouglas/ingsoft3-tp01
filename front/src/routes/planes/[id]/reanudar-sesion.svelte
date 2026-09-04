@@ -2,7 +2,7 @@
     // Cómo volver a la conversación del agente que publicó el plan.
     // Claude Code y Codex: el script guardó id, título y directorio, así que damos el comando
     // exacto (CLI) o qué buscar en el historial (GUI). El resto: un prompt para pegarle a un
-    // agente nuevo en el mismo repo, que retoma por el estado que la skill guarda por repo.
+    // agente en la conversación original, que retoma por el estado de esa sesión.
     import { Button } from "$lib/components/ui/button";
     import { HugeiconsIcon } from "@hugeicons/svelte";
     import {
@@ -69,7 +69,7 @@
         return comando ?? busqueda;
     });
     const nota = $derived.by(() => {
-        if (!reabrible) return `Pegale esto a ${nombre} en una conversación nueva.`;
+        if (!reabrible) return `Pegale esto a ${nombre} en la conversación original.`;
         if (modo === "gui")
             return `Buscá esta conversación en el historial de ${nombre}.`;
         if (!comando) return `Sin id de sesión: buscala por este título.`;

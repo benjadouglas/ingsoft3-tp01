@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Cliente mínimo de la API de Borrador. Uso: borrador.sh <publish|wait> ...
-# Guarda el estado (plan actual y última copia del HTML) por repo, fuera del repo,
+# Guarda el estado por servidor, repo y sesión, fuera del repo,
 # para que el agente no maneje ids ni recuerde nada entre llamadas.
 set -euo pipefail
 
@@ -20,10 +20,10 @@ uso:
   borrador.sh publish [opciones] <html-file>
       publica el plan: nueva versión si hay uno abierto, plan nuevo si no. Imprime {url,version}
       --harness <nombre>        claude-code | codex | cursor | opencode | otro
-      --session-id <id>         id de esta conversación, para reabrirla desde el visor
+      --session-id <id>         id de esta conversación (obligatorio si no se detecta)
       --session-title <título>  nombre de esta conversación tal como la muestra el harness
       (harness, id, título y directorio se detectan solos en Claude Code y Codex; harness, id y título en OpenCode; los flags pisan lo detectado)
-  borrador.sh wait
+  borrador.sh wait [--harness <nombre>] [--session-id <id>]
       espera la acción del usuario; imprime {tipo,comentarios,archivo} y sale.
       Si la espera se cortó (Monitor muerto, sesión reabierta), volvé a correrlo: la acción pendiente se vuelve a entregar
 env: BORRADOR_URL o ~/.config/borrador/url (API), BORRADOR_APP_URL (visor, default = BORRADOR_URL),
@@ -60,11 +60,17 @@ check_server() {
 # Estado por repo: el proyecto es el nombre de la carpeta raíz del repo (o del cwd si no hay git).
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 proyecto="$(basename "$repo_root")"
-state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/borrador/$(printf %s "$repo_root" | shasum | cut -c1-16)"
-mkdir -p "$state_dir"
-plan_file="$state_dir/plan_id"       # id del plan abierto
-approved_file="$state_dir/approved"  # existe cuando el plan abierto ya fue aprobado
-html_copy="$state_dir/plan.html"     # última versión publicada
+# Se inicializa después de detectar la sesión y aplicar los flags.
+init_state() {
+  [[ -n "$harness" && -n "$session_id" ]] || die "no se pudo identificar la sesión; pasá --harness y --session-id en publish y wait"
+  local key
+  key="$(printf '%s\0' "$base_url" "$repo_root" "$harness" "$session_id" | shasum | cut -c1-40)"
+  state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/borrador/sessions/$key"
+  mkdir -p "$state_dir"
+  plan_file="$state_dir/plan_id"
+  approved_file="$state_dir/approved"
+  html_copy="$state_dir/plan.html"
+}
 
 plan_id() { cat "$plan_file" 2>/dev/null || true; }
 
@@ -99,25 +105,16 @@ fi
 
 sesion_json() {
   jq -cn --arg h "$harness" --arg id "$session_id" --arg t "$session_title" --arg d "${session_dir:-$repo_root}" \
-    'if $h == "" then {} else {sesion: ({harness:$h, directorio:$d} + (if $id != "" then {id:$id} else {} end) + (if $t != "" then {titulo:$t} else {} end))} end'
+    '{sesion: ({harness:$h, id:$id, directorio:$d} + (if $t != "" then {titulo:$t} else {} end))}'
 }
 
 publish() {
-  while [[ $# -gt 1 ]]; do
-    case "$1" in
-      --harness) harness="$2" ;;
-      --session-id) session_id="$2" ;;
-      --session-title) session_title="$2" ;;
-      *) usage ;;
-    esac
-    shift 2
-  done
   [[ $# -eq 1 && -r "$1" ]] || usage
   check_server
   local id status
   id="$(plan_id)"
   if [[ -n "$id" && ! -e "$approved_file" ]]; then
-    status="$(http POST "/api/planes/$id/versiones" "$(jq -cn --rawfile html "$1" '{contenidoHtml:$html}')")"
+    status="$(http POST "/api/planes/$id/versiones" "$(jq -cn --rawfile html "$1" --argjson sesion "$(sesion_json)" '{contenidoHtml:$html} + $sesion')")"
     # 404: el plan ya no existe en el servidor; se publica uno nuevo.
     [[ "$status" == 404 ]] && id=""
   fi
@@ -135,11 +132,12 @@ publish() {
 
 wait_action() {
   [[ $# -eq 0 ]] || usage
-  local id status
+  local id status query
+  query="$(jq -rn --arg h "$harness" --arg id "$session_id" '"harness=\($h | @uri)&id=\($id | @uri)"')"
   id="$(plan_id)"
-  [[ -n "$id" ]] || die "no hay ningún plan publicado desde este repo; corré publish primero"
+  [[ -n "$id" ]] || die "no hay ningún plan publicado desde esta sesión; corré publish primero"
   while true; do
-    status="$(http GET "/api/planes/$id/acciones/siguiente?wait=55")"
+    status="$(http GET "/api/planes/$id/acciones/siguiente?wait=55&$query")"
     case "$status" in
       200)
         [[ "$(jq -r .tipo "$tmp")" == implement ]] && touch "$approved_file"
@@ -147,13 +145,25 @@ wait_action() {
         return ;;
       204) ;;
       404) die "el plan $id ya no existe en $base_url" ;;
-      401|403) ok "$status" ;;
+      400|401|403|422) ok "$status" ;;
       *) sleep 3 ;;
     esac
   done
 }
 
 cmd="${1:-}"; shift || true
+while [[ $# -gt 0 && "$1" == --* ]]; do
+  [[ $# -ge 2 ]] || usage
+  case "$1" in
+    --harness) harness="$2" ;;
+    --session-id) session_id="$2" ;;
+    --session-title) session_title="$2" ;;
+    *) usage ;;
+  esac
+  shift 2
+done
+[[ "$cmd" == publish || "$cmd" == wait ]] || usage
+init_state
 command -v curl >/dev/null && command -v jq >/dev/null || die "se necesitan curl y jq"
 [[ -n "$base_url" ]] || die "definí BORRADOR_URL o creá ~/.config/borrador/url"
 token="${BORRADOR_TOKEN:-$(cat "$HOME/.config/borrador/token" 2>/dev/null || true)}"
