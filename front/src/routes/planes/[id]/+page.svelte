@@ -1,44 +1,92 @@
 <script lang="ts">
     import { Badge } from "$lib/components/ui/badge";
     import { Button } from "$lib/components/ui/button";
-    import * as Drawer from "$lib/components/ui/drawer";
-    import { Textarea } from "$lib/components/ui/textarea";
+    import * as InputGroup from "$lib/components/ui/input-group";
+    import * as Popover from "$lib/components/ui/popover";
+    import { Toaster } from "$lib/components/ui/sonner";
+    import { toast } from "svelte-sonner";
     import { fragmentoDe } from "$lib/plan-html";
+    import ComentarioToast from "./comentario-toast.svelte";
     import { HugeiconsIcon } from "@hugeicons/svelte";
     import {
         ArrowLeft01Icon,
+        ArrowRight02Icon,
         Comment01Icon,
         RefreshIcon,
         Tick02Icon,
     } from "@hugeicons/core-free-icons";
-    import type { Comentario, Estado } from "./+page";
+    // Comentario local. No viaja al servidor hasta Refinar/Implementar.
+    type Pendiente = {
+        id: string;
+        bloqueId: string | null;
+        fragmento: string | null;
+        texto: string;
+    };
 
     let { data } = $props();
 
-    // Derivados escribibles: arrancan del load y se pisan localmente al comentar o cerrar el turno.
+    // Derivado escribible: arranca del load y se pisa localmente al cerrar el turno.
     let estado = $derived(data.estado);
-    let comentarios = $derived(data.comentarios);
+    let pendientes = $state<Pendiente[]>([]);
     let seleccionado = $state.raw<HTMLElement | null>(null);
+    let scroller = $state.raw<HTMLDivElement | null>(null);
+    let anclaGeneral = $state.raw<HTMLElement | null>(null);
     let abierto = $state(false);
     let texto = $state("");
     let enviando = $state(false);
     let error = $state<string | null>(null);
+    let inputEl = $state.raw<HTMLTextAreaElement | null>(null);
+    // Comentario que se está editando en el popover; null cuando es uno nuevo.
+    let editando = $state<Pendiente | null>(null);
+
+    // Pill mientras es una sola línea; radio fijo chico cuando crece en altura.
+    let multilinea = $state(false);
+    $effect(() => {
+        texto;
+        multilinea = (inputEl?.offsetHeight ?? 0) > 44;
+    });
 
     const esMiTurno = $derived(estado === "user_turn");
-    const etiquetaEstado: Record<Estado, string> = {
-        user_turn: "Tu turno",
-        agent_turn: "Turno del agente",
-        approved: "Aprobado",
-    };
 
-    // Solo los de la versión actual: los anteriores ya fueron atendidos.
-    const actuales = $derived(
-        comentarios.filter((c) => c.versionNumero === data.version),
-    );
-    const porBloque = $derived(Map.groupBy(actuales, (c) => c.bloqueId));
-    const delSeleccionado = $derived(
-        porBloque.get(seleccionado?.id ?? null) ?? [],
-    );
+    // Cada pendiente es un toast fijo (duration infinita) con el mismo id:
+    // volver a llamar a toast.custom con ese id lo actualiza en lugar de duplicarlo.
+    $effect(() => {
+        if (!esMiTurno) {
+            toast.dismiss();
+            return;
+        }
+        for (const c of pendientes) {
+            toast.custom(ComentarioToast, {
+                id: c.id,
+                duration: Number.POSITIVE_INFINITY,
+                dismissible: false,
+                componentProps: {
+                    texto: c.texto,
+                    onEditar: () => editar(c.id),
+                    onBorrar: () => borrar(c.id),
+                },
+            });
+        }
+    });
+
+    function bloqueDe(id: string | null) {
+        return id
+            ? scroller?.querySelector<HTMLElement>(`.plan #${CSS.escape(id)}`) ??
+                  null
+            : null;
+    }
+
+    function editar(id: string) {
+        const c = pendientes.find((p) => p.id === id);
+        if (!c) return;
+        abrir(bloqueDe(c.bloqueId), c);
+    }
+
+    function borrar(id: string) {
+        pendientes = pendientes.filter((p) => p.id !== id);
+        toast.dismiss(id);
+        if (editando?.id === id) cerrar();
+    }
 
     // Tap sobre cualquier elemento con id dentro del plan lo selecciona.
     function tocar(e: MouseEvent) {
@@ -48,79 +96,97 @@
         abrir(bloque);
     }
 
-    function abrir(bloque: HTMLElement | null) {
+    function abrir(bloque: HTMLElement | null, existente: Pendiente | null = null) {
         seleccionado?.removeAttribute("data-seleccionado");
         bloque?.setAttribute("data-seleccionado", "");
         seleccionado = bloque;
-        texto = "";
+        editando = existente;
+        texto = existente?.texto ?? "";
         error = null;
         abierto = true;
-        // El drawer tapa la mitad de abajo: dejamos el bloque arriba, visible.
-        bloque?.scrollIntoView({ block: "start", behavior: "smooth" });
+        // Deja el top del bloque un poco por encima del centro del visor,
+        // así queda lugar para el input arriba.
+        if (bloque && scroller) {
+            const delta =
+                bloque.getBoundingClientRect().top -
+                scroller.getBoundingClientRect().top;
+            scroller.scrollTo({
+                top: scroller.scrollTop + delta - scroller.clientHeight * 0.4,
+                behavior: "smooth",
+            });
+        }
+    }
+
+    // Clic en otro bloque no debe cerrar el popover: lo reanclamos.
+    function fuera(e: PointerEvent) {
+        const t = e.target as Element;
+        if (t.closest(".plan [id]") || t.closest("[data-comentar-general]")) {
+            e.preventDefault();
+        }
     }
 
     function cerrar() {
         abierto = false;
+        editando = null;
         seleccionado?.removeAttribute("data-seleccionado");
         seleccionado = null;
     }
 
-    // Marca cuántos comentarios tiene cada bloque, para el chip de la esquina.
-    function marcar(plan: HTMLDivElement) {
-        const marcados: Element[] = [];
-        for (const [bloqueId, lista] of porBloque) {
-            if (!bloqueId) continue;
-            const el = plan.querySelector(`#${CSS.escape(bloqueId)}`);
-            if (!el) continue;
-            el.setAttribute("data-comentarios", String(lista.length));
-            marcados.push(el);
-        }
-        return () => {
-            for (const el of marcados) el.removeAttribute("data-comentarios");
-        };
-    }
-
-    async function comentar() {
-        if (!texto.trim()) return;
-        enviando = true;
-        error = null;
-        try {
-            const body = seleccionado
-                ? {
-                      bloqueId: seleccionado.id,
-                      fragmento: fragmentoDe(seleccionado),
-                      texto,
-                  }
-                : { texto };
-            const res = await fetch(`/api/planes/${data.id}/comentarios`, {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify(body),
+    // Alta o edición, siempre local.
+    function comentar() {
+        const t = texto.trim();
+        if (!t) return;
+        if (editando) {
+            const id = editando.id;
+            pendientes = pendientes.map((p) =>
+                p.id === id ? { ...p, texto: t } : p,
+            );
+        } else {
+            pendientes.push({
+                id: crypto.randomUUID(),
+                bloqueId: seleccionado?.id ?? null,
+                fragmento: seleccionado ? fragmentoDe(seleccionado) : null,
+                texto: t,
             });
-            if (!res.ok) {
-                error =
-                    res.status === 409
-                        ? "El plan ya no está en tu turno."
-                        : "No se pudo guardar el comentario.";
-                return;
-            }
-            const lista = await fetch(`/api/planes/${data.id}/comentarios`);
-            comentarios = (await lista.json()) as Comentario[];
-            cerrar();
-        } finally {
-            enviando = false;
         }
+        cerrar();
     }
 
+    async function post(ruta: string, body: unknown) {
+        return fetch(`/api/planes/${data.id}/${ruta}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(body),
+        });
+    }
+
+    // Recién acá viajan los comentarios: primero todos, después la acción.
     async function accion(tipo: "refine" | "implement") {
         enviando = true;
         error = null;
         try {
-            const res = await fetch(`/api/planes/${data.id}/acciones`, {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ tipo }),
-            });
+            for (const c of pendientes) {
+                const body =
+                    c.bloqueId !== null
+                        ? {
+                              bloqueId: c.bloqueId,
+                              fragmento: c.fragmento ?? "",
+                              texto: c.texto,
+                          }
+                        : { texto: c.texto };
+                const res = await post("comentarios", body);
+                if (!res.ok) {
+                    error =
+                        res.status === 409
+                            ? "El plan ya no está en tu turno."
+                            : "No se pudo guardar un comentario.";
+                    return;
+                }
+                // Ya está en el servidor: si el próximo falla, no se reenvía al reintentar.
+                pendientes = pendientes.filter((p) => p.id !== c.id);
+                toast.dismiss(c.id);
+            }
+            const res = await post("acciones", { tipo });
             if (!res.ok) {
                 error = "No se pudo cerrar el turno.";
                 return;
@@ -145,14 +211,11 @@
         </Button>
         <span class="min-w-0 flex-1 truncate text-sm">{data.titulo}</span>
         <Badge variant="outline">v{data.version}</Badge>
-        <Badge variant={esMiTurno ? "default" : "secondary"}>
-            {etiquetaEstado[estado]}
-        </Badge>
     </header>
 
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div class="flex-1 overflow-auto" onclick={tocar}>
-        <div class={["plan", esMiTurno && "plan-editable"]} {@attach marcar}>
+    <div class="flex-1 overflow-auto" bind:this={scroller} onclick={tocar}>
+        <div class={["plan", esMiTurno && "plan-editable"]}>
             {@html data.plan.cuerpo}
         </div>
     </div>
@@ -161,16 +224,22 @@
         class="flex items-center gap-2 border-t bg-background px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
     >
         {#if esMiTurno}
-            <Button variant="outline" size="sm" onclick={() => abrir(null)}>
+            <Button
+                variant="outline"
+                size="sm"
+                data-comentar-general
+                bind:ref={anclaGeneral}
+                onclick={() => abrir(null)}
+            >
                 <HugeiconsIcon icon={Comment01Icon} data-icon="inline-start" />
                 Comentar
             </Button>
             <span class="flex-1 truncate text-xs text-muted-foreground">
-                {#if actuales.length === 0}
+                {#if pendientes.length === 0}
                     Tocá un bloque para comentarlo
                 {:else}
-                    {actuales.length}
-                    {actuales.length === 1 ? "comentario" : "comentarios"}
+                    {pendientes.length}
+                    {pendientes.length === 1 ? "comentario" : "comentarios"}
                 {/if}
             </span>
             <Button
@@ -205,64 +274,71 @@
     </footer>
 </div>
 
-<Drawer.Root
+<!-- Los comentarios pendientes viven acá, apilados, sin vencimiento. -->
+<Toaster
+    position="bottom-right"
+    duration={Number.POSITIVE_INFINITY}
+    offset={{ bottom: 60, right: 16 }}
+    mobileOffset={{ bottom: 60, right: 12 }}
+/>
+
+<Popover.Root
     bind:open={abierto}
     onOpenChange={(o) => {
         if (!o) cerrar();
     }}
 >
-    <Drawer.Content>
-        <div class="mx-auto w-full max-w-lg px-4 pb-4">
-            <Drawer.Header class="px-0">
-                <Drawer.Title>
-                    {#if seleccionado}
-                        <span class="font-mono text-xs font-normal text-muted-foreground">
-                            #{seleccionado.id}
-                        </span>
-                    {:else}
-                        Comentario general
-                    {/if}
-                </Drawer.Title>
-                <Drawer.Description class="line-clamp-2">
-                    {seleccionado
-                        ? fragmentoDe(seleccionado)
-                        : "Sobre el plan entero."}
-                </Drawer.Description>
-            </Drawer.Header>
-
-            {#if delSeleccionado.length > 0}
-                <ul class="mb-3 flex flex-col gap-1.5">
-                    {#each delSeleccionado as c (c.id)}
-                        <li
-                            class="rounded-md border-l-2 border-primary bg-muted/40 px-2 py-1.5 text-sm"
-                        >
-                            {c.texto}
-                        </li>
-                    {/each}
-                </ul>
-            {/if}
-
-            <Textarea
+    <Popover.Trigger class="sr-only" tabindex={-1}></Popover.Trigger>
+    <Popover.Content
+        class="w-80 gap-0 border-0 bg-transparent p-0 shadow-none ring-0"
+        side="top"
+        align="start"
+        sideOffset={16}
+        collisionPadding={12}
+        customAnchor={seleccionado ?? anclaGeneral}
+        onInteractOutside={fuera}
+    >
+        <Popover.Title class="sr-only">
+            {editando ? "Editar comentario" : "Comentario"}
+        </Popover.Title>
+        <InputGroup.Root
+            class={[
+                "border-[#EAEAEA] shadow-[0_6px_24px_rgba(0,0,0,0.12)] has-[[data-slot=input-group-control]:focus-visible]:border-[#EAEAEA] has-[[data-slot=input-group-control]:focus-visible]:ring-0",
+                multilinea
+                    ? "items-end [--radius:1.25rem]"
+                    : "items-center [--radius:9999px]",
+            ]}
+        >
+            <InputGroup.Textarea
+                bind:ref={inputEl}
                 bind:value={texto}
-                placeholder="Qué cambiarías?"
-                class="min-h-24 text-base"
-                autofocus
+                placeholder="Describir el cambio"
+                class="max-h-32 min-h-9 overflow-y-auto py-2 ps-2.5 text-base md:text-base placeholder:text-[#A8A8A8]"
+                onkeydown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        comentar();
+                    }
+                }}
             />
-            {#if error}
-                <p class="mt-2 text-xs text-destructive">{error}</p>
-            {/if}
-            <Drawer.Footer class="flex-row justify-end px-0 pb-0">
-                <Button variant="ghost" onclick={cerrar}>Cancelar</Button>
-                <Button
+            <InputGroup.Addon align="inline-end">
+                <InputGroup.Button
+                    variant="default"
+                    size="icon-sm"
+                    class="rounded-full [&_svg:not([class*='size-'])]:size-4"
                     disabled={enviando || !texto.trim()}
                     onclick={comentar}
                 >
-                    Enviar
-                </Button>
-            </Drawer.Footer>
-        </div>
-    </Drawer.Content>
-</Drawer.Root>
+                    <HugeiconsIcon icon={ArrowRight02Icon} strokeWidth={2.5} />
+                    <span class="sr-only">{editando ? "Guardar" : "Agregar"}</span>
+                </InputGroup.Button>
+            </InputGroup.Addon>
+        </InputGroup.Root>
+        {#if error}
+            <p class="px-1 pt-1 text-xs text-destructive">{error}</p>
+        {/if}
+    </Popover.Content>
+</Popover.Root>
 
 <style>
     /* Sobre el HTML del plan, que llega vía {@html}: de ahí el :global. */
@@ -283,32 +359,12 @@
     @media (hover: hover) {
         .plan-editable :global([id]:hover:not(:has([id]:hover))) {
             outline-color: color-mix(in oklch, var(--primary) 35%, transparent);
-            background-color: color-mix(in oklch, var(--primary) 4%, transparent);
+            box-shadow: none;
         }
     }
     .plan :global([data-seleccionado]),
     .plan-editable :global([data-seleccionado]:hover) {
         outline-color: var(--primary);
-        background-color: color-mix(in oklch, var(--primary) 4%, transparent);
-    }
-    .plan :global([data-comentarios]::after) {
-        content: attr(data-comentarios);
-        position: absolute;
-        top: -0.9rem;
-        right: -0.9rem;
-        min-width: 1.25rem;
-        height: 1.25rem;
-        padding: 0 0.35rem;
-        border-radius: 9999px;
-        background: var(--primary);
-        color: var(--primary-foreground);
-        font: 600 0.7rem/1.25rem ui-sans-serif, system-ui, sans-serif;
-        text-align: center;
-        pointer-events: none;
-    }
-    /* El drawer es un panel de comentario, no un modal: el plan y el bloque marcado siguen viéndose. */
-    :global([data-slot="drawer-overlay"]) {
-        background: color-mix(in oklch, var(--foreground) 15%, transparent);
-        backdrop-filter: none;
+        box-shadow: none;
     }
 </style>

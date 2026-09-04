@@ -12,8 +12,8 @@
 
 <div
 	bind:this={ref}
-	data-slot="drawer-header"
-	class={cn("gap-1 p-4 group-data-[vaul-drawer-direction=bottom]/drawer-content:text-center group-data-[vaul-drawer-direction=top]/drawer-content:text-center md:text-left flex flex-col", className)}
+	data-slot="popover-title"
+	class={cn("text-sm font-medium", className)}
 	{...restProps}
 >
 	{@render children?.()}
