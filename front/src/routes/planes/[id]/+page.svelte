@@ -7,11 +7,13 @@
     import { toast } from "svelte-sonner";
     import { fragmentoDe } from "$lib/plan-html";
     import ComentarioToast from "./comentario-toast.svelte";
+    import ReanudarSesion from "./reanudar-sesion.svelte";
     import { HugeiconsIcon } from "@hugeicons/svelte";
     import {
         ArrowLeft01Icon,
         ArrowRight02Icon,
         Comment01Icon,
+        ComputerTerminal01Icon,
         RefreshIcon,
         Tick02Icon,
     } from "@hugeicons/core-free-icons";
@@ -259,14 +261,42 @@
                 <HugeiconsIcon icon={Tick02Icon} data-icon="inline-start" />
                 Implementar
             </Button>
-        {:else if estado === "agent_turn"}
-            <span class="text-xs text-muted-foreground">
-                El agente está trabajando en la próxima versión.
-            </span>
         {:else}
-            <span class="text-xs text-muted-foreground">
-                Plan aprobado. El agente lo está implementando.
+            <span class="flex-1 text-xs text-muted-foreground">
+                {#if estado === "agent_turn"}
+                    El agente está trabajando en la próxima versión.
+                {:else}
+                    Plan aprobado. El agente lo está implementando.
+                {/if}
             </span>
+            {#if data.sesion}
+                <!-- Si el agente no responde, desde acá se reabre su conversación. -->
+                <Popover.Root>
+                    <Popover.Trigger>
+                        {#snippet child({ props }: { props: Record<string, unknown> })}
+                            <Button variant="outline" size="sm" {...props}>
+                                <HugeiconsIcon
+                                    icon={ComputerTerminal01Icon}
+                                    data-icon="inline-start"
+                                />
+                                Reanudar
+                            </Button>
+                        {/snippet}
+                    </Popover.Trigger>
+                    <Popover.Content
+                        class="w-[calc(100vw-1.5rem)] max-w-md"
+                        side="top"
+                        align="end"
+                        collisionPadding={12}
+                    >
+                        <p class="mb-2 text-xs text-muted-foreground">
+                            Si el agente se cerró o dejó de esperar, reabrí su
+                            conversación y decile que ya comentaste.
+                        </p>
+                        <ReanudarSesion {...data.sesion} planTitulo={data.titulo} />
+                    </Popover.Content>
+                </Popover.Root>
+            {/if}
         {/if}
         {#if error && !abierto}
             <span class="text-xs text-destructive">{error}</span>

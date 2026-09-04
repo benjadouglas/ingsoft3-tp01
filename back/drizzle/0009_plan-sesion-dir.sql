@@ -1,0 +1,1 @@
+ALTER TABLE "plan" ADD COLUMN "session_dir" text;
