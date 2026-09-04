@@ -1,7 +1,7 @@
 /**
  * El plan llega como documento HTML completo pero se renderiza inline, dentro
  * de la app, para poder tocar sus bloques. Sus `<style>` se acotan con
- * `@scope (.plan)` así no pisan los estilos de la app, y `html`/`body` pasan a
+ * `@scope (.plan)` así no pisan los estilos de la app, y `html`, `body` y `:root` pasan a
  * ser el contenedor.
  */
 export function prepararPlan(html: string): { estilos: string; cuerpo: string } {
@@ -9,7 +9,7 @@ export function prepararPlan(html: string): { estilos: string; cuerpo: string } 
     const css = [...doc.querySelectorAll("style")]
         .map((s) => s.textContent ?? "")
         .join("\n")
-        .replace(/(?<![.#\w-])(html|body)(?![\w-])/g, ":scope");
+        .replace(/(?<![.#\w-])(html|body|:root)(?![\w-])/g, ":scope");
     for (const el of doc.querySelectorAll("style, script, link")) el.remove();
     return { estilos: `@scope (.plan) {\n${css}\n}`, cuerpo: doc.body.innerHTML };
 }
