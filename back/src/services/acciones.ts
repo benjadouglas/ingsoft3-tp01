@@ -121,23 +121,9 @@ export async function crearAccion(
     }
 }
 
-async function accionPendiente(userId: string, planId: string) {
-    const p = await planDelUsuario(userId, planId);
-    if (!p) return;
-    const [a] = await db
-        .select({
-            id: action.id,
-            tipo: action.type,
-            versionId: action.versionId,
-        })
-        .from(action)
-        .where(and(eq(action.planId, planId), eq(action.consumed, false)));
-    if (!a) return null;
-    const [v] = await db
-        .select({ numero: version.number })
-        .from(version)
-        .where(eq(version.id, a.versionId));
-    const comentarios = await db
+/** Comentarios de una versión, en el orden en que se hicieron. */
+function comentariosDe(versionId: string) {
+    return db
         .select({
             id: comment.id,
             bloqueId: comment.blockId,
@@ -145,15 +131,49 @@ async function accionPendiente(userId: string, planId: string) {
             texto: comment.text,
         })
         .from(comment)
-        .where(eq(comment.versionId, a.versionId))
+        .where(eq(comment.versionId, versionId))
         .orderBy(comment.createdAt);
-    return {
-        accionId: a.id,
-        tipo: a.tipo,
-        plan: { id: p.id, titulo: p.titulo, version: v!.numero },
-        comentarios,
-        contenidoUrl: `/api/planes/${p.id}/versiones/${v!.numero}/contenido`,
-    };
+}
+
+/**
+ * Lo que el agente recibe: el tipo de acción y los comentarios del usuario.
+ * El HTML no viaja de vuelta: la fuente de verdad es la copia del agente.
+ */
+async function accionPendiente(p: {
+    id: string;
+    estado: string;
+}): Promise<{
+    tipo: Tipo;
+    comentarios: Awaited<ReturnType<typeof comentariosDe>>;
+} | null> {
+    const [a] = await db
+        .select({
+            id: action.id,
+            tipo: action.type,
+            versionId: action.versionId,
+            consumida: action.consumed,
+        })
+        .from(action)
+        .where(eq(action.planId, p.id))
+        .orderBy(desc(action.createdAt))
+        .limit(1);
+    // Un plan aprobado sin pendiente vuelve a entregar su `implement`: si el agente
+    // murió justo después de recibirlo, al reconectar lo recupera.
+    if (!a || (a.consumida && p.estado !== "approved")) return null;
+    // `implement` es terminal: se consume al entregarlo, no hay nada que resolver.
+    if (!a.consumida && a.tipo === "implement") {
+        await db.transaction(async (tx) => {
+            await tx
+                .update(action)
+                .set({ consumed: true, consumedAt: new Date() })
+                .where(eq(action.id, a.id));
+            await tx
+                .update(comment)
+                .set({ attended: true })
+                .where(eq(comment.versionId, a.versionId));
+        });
+    }
+    return { tipo: a.tipo, comentarios: await comentariosDe(a.versionId) };
 }
 
 /** Long-poll: la acción pendiente, `null` si venció la espera, `undefined` si el plan no es del usuario. */
@@ -162,58 +182,55 @@ export async function siguienteAccion(
     planId: string,
     waitMs: number,
 ) {
-    const ahora = await accionPendiente(userId, planId);
-    if (ahora !== null) return ahora;
+    const p = await planDelUsuario(userId, planId);
+    if (!p) return;
+    const ahora = await accionPendiente(p);
+    if (ahora) return ahora;
     await esperarAccion(planId, waitMs);
-    return accionPendiente(userId, planId);
+    return accionPendiente(p);
 }
 
-export async function resolverAccion(
+/**
+ * El agente publica una versión nueva. Solo en `agent_turn`: cierra la acción
+ * pendiente, marca atendidos sus comentarios y devuelve el turno al usuario.
+ */
+export async function nuevaVersion(
     userId: string,
-    accionId: string,
-    contenidoHtml?: string,
-): Promise<{ version: number } | "no_encontrado" | "ya_resuelta"> {
+    planId: string,
+    contenidoHtml: string,
+): Promise<{ version: number } | "no_encontrado" | "no_es_tu_turno"> {
+    const p = await planDelUsuario(userId, planId);
+    if (!p) return "no_encontrado";
+    if (p.estado !== "agent_turn") return "no_es_tu_turno";
     const [a] = await db
-        .select({
-            id: action.id,
-            planId: action.planId,
-            versionId: action.versionId,
-            tipo: action.type,
-            consumida: action.consumed,
-        })
+        .select({ id: action.id, versionId: action.versionId })
         .from(action)
-        .innerJoin(plan, eq(action.planId, plan.id))
-        .innerJoin(project, eq(plan.projectId, project.id))
-        .where(and(eq(action.id, accionId), eq(project.userId, userId)));
-    if (!a) return "no_encontrado";
-    if (a.consumida) return "ya_resuelta";
+        .where(and(eq(action.planId, planId), eq(action.consumed, false)));
     return db.transaction(async (tx) => {
         const [{ ultima }] = await tx
             .select({ ultima: max(version.number).mapWith(Number) })
             .from(version)
-            .where(eq(version.planId, a.planId));
-        let numero = ultima!;
-        if (contenidoHtml !== undefined) {
-            numero = ultima! + 1;
-            await tx.insert(version).values({
-                planId: a.planId,
-                number: numero,
-                htmlContent: contenidoHtml,
-            });
+            .where(eq(version.planId, planId));
+        const numero = ultima! + 1;
+        await tx.insert(version).values({
+            planId,
+            number: numero,
+            htmlContent: contenidoHtml,
+        });
+        if (a) {
+            await tx
+                .update(action)
+                .set({ consumed: true, consumedAt: new Date() })
+                .where(eq(action.id, a.id));
+            await tx
+                .update(comment)
+                .set({ attended: true })
+                .where(eq(comment.versionId, a.versionId));
         }
         await tx
-            .update(action)
-            .set({ consumed: true, consumedAt: new Date() })
-            .where(eq(action.id, a.id));
-        await tx
-            .update(comment)
-            .set({ attended: true })
-            .where(eq(comment.versionId, a.versionId));
-        if (a.tipo === "refine")
-            await tx
-                .update(plan)
-                .set({ state: "user_turn" })
-                .where(eq(plan.id, a.planId));
+            .update(plan)
+            .set({ state: "user_turn" })
+            .where(eq(plan.id, planId));
         return { version: numero };
     });
 }

@@ -1,4 +1,4 @@
-// Turnos, acciones y resolución: la app de Elysia en proceso contra Postgres real.
+// Turnos, acciones y versiones: la app de Elysia en proceso contra Postgres real.
 // Corre con DATABASE_URL apuntando a una base con las migraciones aplicadas.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
@@ -41,13 +41,12 @@ async function api(
     return { status: res.status, json };
 }
 
+const proyecto = `p-${crypto.randomUUID()}`;
+
 async function planNuevo() {
-    const proy = await api("POST", "/proyectos", {
-        nombre: `p-${crypto.randomUUID()}`,
-    });
-    const plan = await api("POST", `/proyectos/${proy.json.id}/planes`, {
-        titulo: "t",
-        contenidoHtml: "<section id='a'>v1</section>",
+    const plan = await api("POST", "/planes", {
+        proyecto,
+        contenidoHtml: "<title>t</title><section id='a'>v1</section>",
     });
     return plan.json.id as string;
 }
@@ -76,38 +75,40 @@ afterAll(async () => {
     await db.delete(user).where(eq(user.id, otroId));
 });
 
-describe("comentarios y acciones", () => {
-    test("un plan ajeno es 404 para comentar, accionar y escuchar", async () => {
+describe("publicar", () => {
+    test("crea el proyecto por nombre y toma el título del HTML", async () => {
         const id = await planNuevo();
+        await planNuevo();
+        const lista = (await api("GET", "/planes")).json;
+        const mio = lista.find((p: any) => p.id === id);
+        expect(mio).toMatchObject({
+            titulo: "t",
+            proyecto,
+            estado: "user_turn",
+            version: 1,
+        });
+        expect(new Set(lista.map((p: any) => p.proyecto)).size).toBe(1);
+    });
+});
+
+describe("comentarios y acciones", () => {
+    test("un plan ajeno es 404 para comentar, accionar, escuchar y versionar", async () => {
+        const id = await planNuevo();
+        const ajeno = (m: string, p: string, b?: unknown) =>
+            api(m, p, b, otraClave).then((r) => r.status);
         expect(
-            (
-                await api(
-                    "POST",
-                    `/planes/${id}/comentarios`,
-                    { texto: "x" },
-                    otraClave,
-                )
-            ).status,
+            await ajeno("POST", `/planes/${id}/comentarios`, { texto: "x" }),
         ).toBe(404);
         expect(
-            (
-                await api(
-                    "POST",
-                    `/planes/${id}/acciones`,
-                    { tipo: "refine" },
-                    otraClave,
-                )
-            ).status,
+            await ajeno("POST", `/planes/${id}/acciones`, { tipo: "refine" }),
         ).toBe(404);
         expect(
-            (
-                await api(
-                    "GET",
-                    `/planes/${id}/acciones/siguiente?wait=0`,
-                    undefined,
-                    otraClave,
-                )
-            ).status,
+            await ajeno("GET", `/planes/${id}/acciones/siguiente?wait=0`),
+        ).toBe(404);
+        expect(
+            await ajeno("POST", `/planes/${id}/versiones`, {
+                contenidoHtml: "x",
+            }),
         ).toBe(404);
     });
 
@@ -136,7 +137,18 @@ describe("comentarios y acciones", () => {
         ).toBe(409);
     });
 
-    test("siguiente entrega la acción con sus comentarios; resolver con HTML crea v2, atiende y devuelve el turno", async () => {
+    test("en turno del usuario el agente no puede publicar versión", async () => {
+        const id = await planNuevo();
+        expect(
+            (
+                await api("POST", `/planes/${id}/versiones`, {
+                    contenidoHtml: "x",
+                })
+            ).status,
+        ).toBe(409);
+    });
+
+    test("siguiente entrega tipo y comentarios; la versión nueva atiende y devuelve el turno", async () => {
         const id = await planNuevo();
         await api("POST", `/planes/${id}/comentarios`, {
             bloqueId: "a",
@@ -151,22 +163,20 @@ describe("comentarios y acciones", () => {
         const sig = await api("GET", `/planes/${id}/acciones/siguiente?wait=0`);
         expect(sig.status).toBe(200);
         expect(sig.json.tipo).toBe("refine");
-        expect(sig.json.plan.version).toBe(1);
         expect(sig.json.comentarios.map((c: any) => c.bloqueId)).toEqual([
             "a",
             null,
         ]);
-        expect(sig.json.contenidoUrl).toBe(
-            `/api/planes/${id}/versiones/1/contenido`,
-        );
+        expect(Object.keys(sig.json).sort()).toEqual(["comentarios", "tipo"]);
+        // Mientras no resuelva, la misma acción se entrega de nuevo.
+        expect(
+            (await api("GET", `/planes/${id}/acciones/siguiente?wait=0`))
+                .status,
+        ).toBe(200);
 
-        const res = await api(
-            "POST",
-            `/acciones/${sig.json.accionId}/resolver`,
-            {
-                contenidoHtml: "<section id='a'>v2</section>",
-            },
-        );
+        const res = await api("POST", `/planes/${id}/versiones`, {
+            contenidoHtml: "<section id='a'>v2</section>",
+        });
         expect(res.status).toBe(200);
         expect(res.json.version).toBe(2);
         expect(
@@ -189,25 +199,31 @@ describe("comentarios y acciones", () => {
             (await api("GET", `/planes/${id}/acciones/siguiente?wait=0`))
                 .status,
         ).toBe(204);
-        expect(
-            (await api("POST", `/acciones/${sig.json.accionId}/resolver`, {}))
-                .status,
-        ).toBe(409);
     });
 
-    test("implement deja el plan aprobado; resolver sin HTML consume sin crear versión", async () => {
+    test("implement es terminal: se consume al entregarlo, se vuelve a entregar y no admite versiones", async () => {
         const id = await planNuevo();
+        await api("POST", `/planes/${id}/comentarios`, { texto: "dale" });
         await api("POST", `/planes/${id}/acciones`, { tipo: "implement" });
         const sig = await api("GET", `/planes/${id}/acciones/siguiente?wait=0`);
-        const res = await api(
-            "POST",
-            `/acciones/${sig.json.accionId}/resolver`,
-            {},
-        );
-        expect(res.json.version).toBe(1);
+        expect(sig.json.tipo).toBe("implement");
         expect(
-            (await api("GET", `/planes/${id}/versiones/2/contenido`)).status,
-        ).toBe(404);
+            (await api("GET", `/planes/${id}/comentarios`)).json[0].atendido,
+        ).toBe(true);
+        // Idempotente: si el agente murió, al reconectar lo recupera sin esperar.
+        const otraVez = await api(
+            "GET",
+            `/planes/${id}/acciones/siguiente?wait=0`,
+        );
+        expect(otraVez.status).toBe(200);
+        expect(otraVez.json.tipo).toBe("implement");
+        expect(
+            (
+                await api("POST", `/planes/${id}/versiones`, {
+                    contenidoHtml: "x",
+                })
+            ).status,
+        ).toBe(409);
         expect(
             (await api("POST", `/planes/${id}/comentarios`, { texto: "x" }))
                 .status,

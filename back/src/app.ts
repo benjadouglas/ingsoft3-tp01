@@ -5,14 +5,13 @@ import {
     comentar,
     crearAccion,
     listarComentarios,
+    nuevaVersion,
     obtenerHtmlVersion,
-    resolverAccion,
     siguienteAccion,
 } from "./services/acciones";
 import {
     listarPlanes,
     obtenerHtmlActual,
-    obtenerOCrearProyecto,
     publicarPlan,
 } from "./services/planes";
 
@@ -41,22 +40,11 @@ export const app = new Elysia({ prefix: "/api" })
         },
         { usuario: true },
     )
+    // Agente: publica un plan nuevo (v1) en el proyecto, creándolo por nombre si no existe.
     .post(
-        "/proyectos",
-        ({ body, usuario }) => obtenerOCrearProyecto(usuario.id, body.nombre),
-        {
-            body: t.Object({ nombre: t.String({ minLength: 1 }) }),
-            usuario: true,
-        },
-    )
-    .post(
-        "/proyectos/:id/planes",
-        async ({ params, body, usuario, status }) => {
-            const plan = await publicarPlan(usuario.id, {
-                proyectoId: params.id,
-                ...body,
-            });
-            if (!plan) return status(404, "Proyecto no encontrado");
+        "/planes",
+        async ({ body, usuario, status }) => {
+            const plan = await publicarPlan(usuario.id, body);
             return status(201, {
                 id: plan.id,
                 url: `/planes/${plan.id}`,
@@ -64,11 +52,9 @@ export const app = new Elysia({ prefix: "/api" })
             });
         },
         {
-            params: t.Object({ id: t.String({ format: "uuid" }) }),
             body: t.Object({
-                titulo: t.String({ minLength: 1 }),
+                proyecto: t.String({ minLength: 1 }),
                 contenidoHtml: t.String({ minLength: 1 }),
-                sessionId: t.Optional(t.String()),
             }),
             usuario: true,
         },
@@ -165,6 +151,7 @@ export const app = new Elysia({ prefix: "/api" })
             usuario: true,
         },
     )
+    // Agente: long-poll hasta que el usuario cierre su turno. Devuelve `{ tipo, comentarios }`.
     .get(
         "/planes/:id/acciones/siguiente",
         async ({ params, query, usuario, status }) => {
@@ -185,25 +172,23 @@ export const app = new Elysia({ prefix: "/api" })
             usuario: true,
         },
     )
+    // Agente: versión nueva. Cierra la acción pendiente y devuelve el turno al usuario.
     .post(
-        "/acciones/:id/resolver",
+        "/planes/:id/versiones",
         async ({ params, body, usuario, status }) => {
-            const r = await resolverAccion(
+            const r = await nuevaVersion(
                 usuario.id,
                 params.id,
                 body.contenidoHtml,
             );
-            if (r === "no_encontrado")
-                return status(404, "Acción no encontrada");
-            if (r === "ya_resuelta")
-                return status(409, "La acción ya fue resuelta");
+            if (r === "no_encontrado") return status(404, "Plan no encontrado");
+            if (r === "no_es_tu_turno")
+                return status(409, "El plan no está en turno del agente");
             return r;
         },
         {
             params: t.Object({ id: t.String({ format: "uuid" }) }),
-            body: t.Object({
-                contenidoHtml: t.Optional(t.String({ minLength: 1 })),
-            }),
+            body: t.Object({ contenidoHtml: t.String({ minLength: 1 }) }),
             usuario: true,
         },
     );
