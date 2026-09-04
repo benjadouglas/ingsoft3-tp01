@@ -47,8 +47,6 @@ export const plan = pgTable("plan", {
     title: text("title").notNull(),
     state: planStateEnum("state").notNull().default("user_turn"),
     viewAccess: viewAccessEnum("view_access").notNull().default("owner"),
-    // Sesión del agente que publicó; solo informativo.
-    sessionId: text("session_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
         .notNull()
         .defaultNow(),
