@@ -89,6 +89,27 @@ describe("publicar", () => {
         });
         expect(new Set(lista.map((p: any) => p.proyecto)).size).toBe(1);
     });
+
+    test("guarda la sesión del agente y la devuelve en la lista", async () => {
+        const sesion = {
+            harness: "claude-code",
+            id: "abc",
+            titulo: "Plan t",
+            directorio: "/repo",
+        };
+        const { json } = await api("POST", "/planes", {
+            proyecto,
+            contenidoHtml: "<title>t</title><section id='a'>v1</section>",
+            sesion,
+        });
+        const lista = (await api("GET", "/planes")).json;
+        expect(lista.find((p: any) => p.id === json.id)).toMatchObject({
+            harness: "claude-code",
+            sesionId: "abc",
+            sesionTitulo: "Plan t",
+            sesionDirectorio: "/repo",
+        });
+    });
 });
 
 describe("comentarios y acciones", () => {

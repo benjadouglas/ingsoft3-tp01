@@ -17,8 +17,15 @@ die() { echo "borrador: $*" >&2; exit 1; }
 usage() {
   cat >&2 <<'USAGE'
 uso:
-  borrador.sh publish <html-file>   publica el plan: nueva versión si hay uno abierto, plan nuevo si no. Imprime {url,version}
-  borrador.sh wait                  espera la acción del usuario; imprime {tipo,comentarios,archivo} y sale
+  borrador.sh publish [opciones] <html-file>
+      publica el plan: nueva versión si hay uno abierto, plan nuevo si no. Imprime {url,version}
+      --harness <nombre>        claude-code | codex | cursor | opencode | otro
+      --session-id <id>         id de esta conversación, para reabrirla desde el visor
+      --session-title <título>  nombre de esta conversación tal como la muestra el harness
+      (harness, id, título y directorio se detectan solos en Claude Code y Codex; harness, id y título en OpenCode; los flags pisan lo detectado)
+  borrador.sh wait
+      espera la acción del usuario; imprime {tipo,comentarios,archivo} y sale.
+      Si la espera se cortó (Monitor muerto, sesión reabierta), volvé a correrlo: la acción pendiente se vuelve a entregar
 env: BORRADOR_URL (API, default http://localhost:3000), BORRADOR_APP_URL (visor, default http://localhost:5173),
      BORRADOR_TOKEN o ~/.config/borrador/token
 USAGE
@@ -61,7 +68,50 @@ html_copy="$state_dir/plan.html"     # última versión publicada
 
 plan_id() { cat "$plan_file" 2>/dev/null || true; }
 
+# Conversación que publica: se guarda con el plan para que el visor ofrezca cómo volver a ella.
+# Claude Code y Codex exponen el id por entorno; título y directorio se leen de sus logs locales
+# (en el primer turno el título todavía no existe y queda vacío). OpenCode expone id y título.
+# Cursor no expone nada: ahí el agente pasa los flags. Sin directorio detectado, vale el del repo.
+claude_code_sesion() {  # dos líneas: título, cwd
+  local log
+  log="$(ls "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/"$1".jsonl 2>/dev/null | head -1 || true)"
+  [[ -n "$log" ]] || return 0
+  jq -rs '((map(select(.type == "custom-title")) | last | .customTitle) // (map(select(.type == "ai-title")) | last | .aiTitle) // ""),
+          ((map(.cwd // empty) | first) // "")' "$log" 2>/dev/null || true
+}
+codex_sesion() {  # dos líneas: título, cwd
+  local home="${CODEX_HOME:-$HOME/.codex}" rollout
+  jq -rs --arg id "$1" 'map(select(.id == $id)) | last | .thread_name // ""' "$home/session_index.jsonl" 2>/dev/null || echo
+  rollout="$(ls "$home"/sessions/*/*/*/rollout-*-"$1".jsonl 2>/dev/null | head -1 || true)"
+  { [[ -n "$rollout" ]] && head -1 "$rollout" | jq -r 'select(.type == "session_meta") | .payload.cwd // ""'; } 2>/dev/null || echo
+}
+
+harness="" session_id="" session_title="" session_dir=""
+if [[ -n "${CLAUDE_CODE_SESSION_ID:-}" ]]; then
+  harness=claude-code session_id="$CLAUDE_CODE_SESSION_ID"
+  { read -r session_title; read -r session_dir; } < <(claude_code_sesion "$session_id") || true
+elif [[ -n "${CODEX_THREAD_ID:-}" ]]; then
+  harness=codex session_id="$CODEX_THREAD_ID"
+  { read -r session_title; read -r session_dir; } < <(codex_sesion "$session_id") || true
+elif [[ -n "${OPENCODE_SESSION_ID:-}" ]]; then
+  harness=opencode session_id="$OPENCODE_SESSION_ID" session_title="${OPENCODE_SESSION_TITLE:-}"
+fi
+
+sesion_json() {
+  jq -cn --arg h "$harness" --arg id "$session_id" --arg t "$session_title" --arg d "${session_dir:-$repo_root}" \
+    'if $h == "" then {} else {sesion: ({harness:$h, directorio:$d} + (if $id != "" then {id:$id} else {} end) + (if $t != "" then {titulo:$t} else {} end))} end'
+}
+
 publish() {
+  while [[ $# -gt 1 ]]; do
+    case "$1" in
+      --harness) harness="$2" ;;
+      --session-id) session_id="$2" ;;
+      --session-title) session_title="$2" ;;
+      *) usage ;;
+    esac
+    shift 2
+  done
   [[ $# -eq 1 && -r "$1" ]] || usage
   check_server
   local id status
@@ -72,7 +122,7 @@ publish() {
     [[ "$status" == 404 ]] && id=""
   fi
   if [[ -z "$id" || -e "$approved_file" ]]; then
-    status="$(http POST /api/planes "$(jq -cn --arg proyecto "$proyecto" --rawfile html "$1" '{proyecto:$proyecto, contenidoHtml:$html}')")"
+    status="$(http POST /api/planes "$(jq -cn --arg proyecto "$proyecto" --rawfile html "$1" --argjson sesion "$(sesion_json)" '{proyecto:$proyecto, contenidoHtml:$html} + $sesion')")"
     ok "$status"
     jq -er .id "$tmp" > "$plan_file"
     rm -f "$approved_file"

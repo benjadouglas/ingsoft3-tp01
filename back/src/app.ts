@@ -55,6 +55,14 @@ export const app = new Elysia({ prefix: "/api" })
             body: t.Object({
                 proyecto: t.String({ minLength: 1 }),
                 contenidoHtml: t.String({ minLength: 1 }),
+                sesion: t.Optional(
+                    t.Object({
+                        harness: t.String({ minLength: 1 }),
+                        id: t.Optional(t.String({ minLength: 1 })),
+                        titulo: t.Optional(t.String({ minLength: 1 })),
+                        directorio: t.Optional(t.String({ minLength: 1 })),
+                    }),
+                ),
             }),
             usuario: true,
         },

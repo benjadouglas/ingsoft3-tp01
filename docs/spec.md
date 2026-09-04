@@ -103,7 +103,7 @@ Diagrama y detalle de columnas en [modelo-datos.html](./modelo-datos.html).
 
 - **user** (Better Auth) + `api_key_hash` (`UNIQUE`) y `api_key_created_at` (nullables).
 - **project**: `id`, `user_id`, `name` (único por usuario), `created_at`.
-- **plan**: `id`, `project_id`, `title`, `state` (`user_turn` | `agent_turn` | `approved`), `view_access` (`owner` | `everyone`), `session_id` (nullable, informativo), `created_at`. La versión actual no es columna: es `MAX(version.number)`.
+- **plan**: `id`, `project_id`, `title`, `state` (`user_turn` | `agent_turn` | `approved`), `view_access` (`owner` | `everyone`), `harness`, `session_id`, `session_title`, `session_dir` (nullables: la conversación del agente que publicó y el directorio donde corría, para reabrirla desde el visor), `created_at`. La versión actual no es columna: es `MAX(version.number)`.
 - **version**: `id`, `plan_id`, `number` (1..n, `UNIQUE(plan_id, number)`, se asigna como `MAX+1` dentro de la transacción), `html_content` (`text`), `created_at`.
 - **comment**: `id`, `version_id`, `block_id` (nullable), `fragment` (nullable, primeros 150 caracteres de texto del bloque al comentar), `text`, `attended`, `created_at`. `CHECK`: `block_id` y `fragment` ambos null (comentario general) o ambos con valor.
 - **action**: `id`, `plan_id`, `version_id` (la versión que se comentó), `type` (`refine` | `implement`), `consumed`, `created_at`, `consumed_at`. Índice único parcial `(plan_id) WHERE consumed = false`: a lo sumo una acción pendiente por plan, garantizado por la BD.
@@ -142,7 +142,7 @@ Proyectos:
 
 Planes:
 - `GET /proyectos/{id}/planes` — lista con estado y fecha de última versión.
-- `POST /proyectos/{id}/planes { titulo, contenidoHtml, sessionId? }` → 201 `{ id, url, version: 1 }`. Crea v1 y deja `user_turn`.
+- `POST /proyectos/{id}/planes { titulo, contenidoHtml, sesion?: { harness, id?, titulo?, directorio? } }` → 201 `{ id, url, version: 1 }`. Crea v1 y deja `user_turn`.
 - `GET /planes/{id}` → metadata, estado, `viewAccess`, `versionActual`, `agenteEscuchando`, versiones (número y fecha). Accesible sin sesión si `viewAccess = everyone`.
 - `GET /planes/{id}/versiones/{n}/contenido` → `text/html`. Misma regla de acceso.
 - `PATCH /planes/{id} { titulo?, viewAccess? }`
@@ -189,7 +189,7 @@ El celular es el dispositivo principal de revisión; el desktop es secundario. T
 
 ### Cliente agente (fuera del repo)
 
-Una skill de Claude Code (`/serve-html`) con un script que loopea el long-poll, reintenta ante error de red, y termina imprimiendo la acción cuando llega. El agente lo lanza en background, su turno termina, y el harness lo despierta con el resultado. Revivir una sesión cerrada queda fuera de alcance; `plan.sessionId` se guarda para habilitarlo en el futuro. La key vive en `HTMLPLAN_TOKEN` / `~/.config/htmlplan/token`, nunca en un repo.
+Una skill de Claude Code (`/serve-html`) con un script que loopea el long-poll, reintenta ante error de red, y termina imprimiendo la acción cuando llega. El agente lo lanza en background, su turno termina, y el harness lo despierta con el resultado. Si la espera muere (Monitor cerrado, sesión reabierta), volver a correr `wait` recupera la acción pendiente: el servidor no la consume hasta la versión siguiente. El script detecta el harness y el id de sesión por entorno y, en Claude Code y Codex, lee título y directorio de sus logs locales (`~/.claude/projects/*/<id>.jsonl`, `~/.codex/session_index.jsonl` y el rollout); sin directorio detectado guarda la raíz del repo. El visor muestra, cuando el turno es del agente, un botón "Reanudar": para Claude Code y Codex el comando de CLI (`cd <dir> && claude --resume <id>`, `cd <dir> && codex resume <id>`) o el título a buscar en la GUI; para cualquier otro harness un prompt para pegarle a un agente nuevo en el repo, que retoma con `wait`. La key vive en `HTMLPLAN_TOKEN` / `~/.config/htmlplan/token`, nunca en un repo.
 
 ## Testing Decisions
 
@@ -228,7 +228,6 @@ Prior art: ninguno en el repo (arranca de cero). Referencia de estilo: tests chi
 - Diff entre versiones. Solo se listan y se abren.
 - Anotaciones gráficas (flechas, dibujos, resaltados libres) y selección de texto dentro de un bloque. Un comentario es `bloque + texto`. El agente recibe siempre texto, nunca imágenes.
 - Webhooks, SSE o cualquier canal en que el servidor llame al agente. Notificaciones al usuario.
-- Revivir una sesión de agente cerrada. Solo se guarda `sessionId`.
 - Almacenamiento fuera de la BD (S3, disco).
 - Más de una instancia del servidor (el canal del long-poll es en memoria).
 - La skill y el script del agente dentro de este repo.

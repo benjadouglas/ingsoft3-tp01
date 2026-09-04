@@ -47,6 +47,13 @@ export const plan = pgTable("plan", {
     title: text("title").notNull(),
     state: planStateEnum("state").notNull().default("user_turn"),
     viewAccess: viewAccessEnum("view_access").notNull().default("owner"),
+    // Conversación del agente que publicó el plan, para volver a ella desde el visor.
+    // Texto libre: el visor conoce algunos harness, el resto se muestra tal cual.
+    harness: text("harness"),
+    sessionId: text("session_id"),
+    sessionTitle: text("session_title"),
+    // Directorio donde corría el agente: el resume de los harness es por proyecto.
+    sessionDir: text("session_dir"),
     createdAt: timestamp("created_at", { withTimezone: true })
         .notNull()
         .defaultNow(),
