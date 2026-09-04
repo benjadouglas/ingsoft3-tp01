@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "./db";
 import * as schema from "./db/schema";
+import { usuarioPorApiKey } from "./services/apiKey";
 
 // baseURL y secret salen de BETTER_AUTH_URL y BETTER_AUTH_SECRET.
 // El browser habla con el front (5173), que proxea /api al back: por eso
@@ -19,5 +20,13 @@ export const auth = betterAuth({
         },
     },
 });
+
+// Autentica por API key (`Authorization: Bearer`, agente) o por sesión
+// (cookie, browser). Devuelve el usuario, o null si no hay credenciales válidas.
+export async function authenticate(headers: Headers): Promise<Usuario | null> {
+    const bearer = headers.get("authorization")?.match(/^Bearer (.+)$/i)?.[1];
+    if (bearer) return (await usuarioPorApiKey(bearer)) ?? null;
+    return (await auth.api.getSession({ headers }))?.user ?? null;
+}
 
 export type Usuario = typeof auth.$Infer.Session.user;

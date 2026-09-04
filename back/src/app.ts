@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
-import { auth } from "./auth";
-import { generarApiKey, usuarioPorApiKey } from "./services/apiKey";
+import { auth, authenticate } from "./auth";
+import { generarApiKey } from "./services/apiKey";
 import {
     comentar,
     crearAccion,
@@ -23,13 +23,7 @@ export const app = new Elysia({ prefix: "/api" })
     .macro({
         usuario: {
             async resolve({ status, request }) {
-                const bearer = request.headers
-                    .get("authorization")
-                    ?.match(/^Bearer (.+)$/i)?.[1];
-                const usuario = bearer
-                    ? await usuarioPorApiKey(bearer)
-                    : (await auth.api.getSession({ headers: request.headers }))
-                          ?.user;
+                const usuario = await authenticate(request.headers);
                 if (!usuario) return status(401);
                 return { usuario };
             },
