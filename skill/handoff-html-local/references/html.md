@@ -1,6 +1,6 @@
 # Reviewable plan HTML
 
-Generate a complete, self-contained HTML5 document that is readable on mobile and desktop. Use inline CSS, no external assets, no forms, and no JavaScript. The Borrador viewer handles all interaction; the plan only supplies content, styling, and block IDs.
+Generate a complete, self-contained HTML5 document that is readable on mobile and desktop. Use inline CSS, no external assets, no forms, and no JavaScript. The Borrador viewer handles all interaction; the plan only supplies content, styling, and block IDs. Always include a `<title>`: it is the plan's name in Borrador.
 
 ## Block IDs
 

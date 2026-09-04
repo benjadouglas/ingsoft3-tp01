@@ -9,6 +9,8 @@ Skill para que un agente (Claude Code, opencode) publique un plan como HTML en B
 
 La API key va en `BORRADOR_TOKEN` o en `~/.config/borrador/token`. Nunca se commitea.
 
+El script expone dos comandos, `publish <html>` y `wait`, y guarda por repo el plan abierto y la última copia del HTML en `~/.local/state/borrador/`. El proyecto es el nombre de la carpeta raíz del repo. El agente nunca ve ids: `publish` crea un plan nuevo si no hay uno abierto o si el último ya fue aprobado, y una versión nueva si no.
+
 Instalación: enlazar la carpeta de la variante en el directorio de skills del agente, por ejemplo
 
 ```sh

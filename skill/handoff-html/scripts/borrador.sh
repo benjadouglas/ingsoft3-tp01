@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Cliente mínimo de la API de Borrador. Uso: borrador.sh <publish|watch|fetch|resolve> ...
+# Cliente mínimo de la API de Borrador. Uso: borrador.sh <publish|wait> ...
+# Guarda el estado (plan actual y última copia del HTML) por repo, fuera del repo,
+# para que el agente no maneje ids ni recuerde nada entre llamadas.
 set -euo pipefail
 
 base_url="${BORRADOR_URL:-$(cat "$HOME/.config/borrador/url" 2>/dev/null || true)}"
@@ -15,10 +17,8 @@ die() { echo "borrador: $*" >&2; exit 1; }
 usage() {
   cat >&2 <<'USAGE'
 uso:
-  borrador.sh publish <proyecto> <titulo> <html-file>   crea el plan (v1), imprime {id,url,version}; url es el link absoluto al visor
-  borrador.sh watch   <plan-id>                          long-poll; imprime la acción como una línea JSON y sale
-  borrador.sh fetch   <contenido-url>                    imprime el HTML de una versión (URL relativa a BORRADOR_URL)
-  borrador.sh resolve <accion-id> [html-file]            resuelve la acción, con o sin versión nueva
+  borrador.sh publish <html-file>   publica el plan: nueva versión si hay uno abierto, plan nuevo si no. Imprime {url,version}
+  borrador.sh wait                  espera la acción del usuario; imprime {tipo,comentarios,archivo} y sale
 env: BORRADOR_URL o ~/.config/borrador/url (API), BORRADOR_APP_URL (visor, default = BORRADOR_URL),
      BORRADOR_TOKEN o ~/.config/borrador/token
 USAGE
@@ -50,55 +50,66 @@ check_server() {
   [[ "$status" == 200 ]] || die "la API key no es válida para $base_url (GET /api/me -> HTTP $status). Regenerala desde la app y guardala en ~/.config/borrador/token."
 }
 
+# Estado por repo: el proyecto es el nombre de la carpeta raíz del repo (o del cwd si no hay git).
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+proyecto="$(basename "$repo_root")"
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/borrador/$(printf %s "$repo_root" | shasum | cut -c1-16)"
+mkdir -p "$state_dir"
+plan_file="$state_dir/plan_id"       # id del plan abierto
+approved_file="$state_dir/approved"  # existe cuando el plan abierto ya fue aprobado
+html_copy="$state_dir/plan.html"     # última versión publicada
+
+plan_id() { cat "$plan_file" 2>/dev/null || true; }
+
 publish() {
-  [[ $# -eq 3 && -r "$3" ]] || usage
+  [[ $# -eq 1 && -r "$1" ]] || usage
   check_server
-  ok "$(http POST /api/proyectos "$(jq -cn --arg nombre "$1" '{nombre:$nombre}')")"
-  local proyecto_id; proyecto_id="$(jq -er .id "$tmp")"
-  ok "$(http POST "/api/proyectos/$proyecto_id/planes" \
-    "$(jq -cn --arg titulo "$2" --rawfile html "$3" '{titulo:$titulo, contenidoHtml:$html}')")"
-  jq -c --arg app "$app_url" '.url = $app + .url' "$tmp"
+  local id status
+  id="$(plan_id)"
+  if [[ -n "$id" && ! -e "$approved_file" ]]; then
+    status="$(http POST "/api/planes/$id/versiones" "$(jq -cn --rawfile html "$1" '{contenidoHtml:$html}')")"
+    # 404: el plan ya no existe en el servidor; se publica uno nuevo.
+    [[ "$status" == 404 ]] && id=""
+  fi
+  if [[ -z "$id" || -e "$approved_file" ]]; then
+    status="$(http POST /api/planes "$(jq -cn --arg proyecto "$proyecto" --rawfile html "$1" '{proyecto:$proyecto, contenidoHtml:$html}')")"
+    ok "$status"
+    jq -er .id "$tmp" > "$plan_file"
+    rm -f "$approved_file"
+  fi
+  ok "$status"
+  cp "$1" "$html_copy"
+  id="$(plan_id)"
+  jq -c --arg url "$app_url/planes/$id" '{url:$url, version}' "$tmp"
 }
 
-watch() {
-  [[ $# -eq 1 ]] || usage
-  local status
+wait_action() {
+  [[ $# -eq 0 ]] || usage
+  local id status
+  id="$(plan_id)"
+  [[ -n "$id" ]] || die "no hay ningún plan publicado desde este repo; corré publish primero"
   while true; do
-    status="$(http GET "/api/planes/$1/acciones/siguiente?wait=55")"
+    status="$(http GET "/api/planes/$id/acciones/siguiente?wait=55")"
     case "$status" in
-      200) jq -c . "$tmp"; return ;;
+      200)
+        [[ "$(jq -r .tipo "$tmp")" == implement ]] && touch "$approved_file"
+        jq -c --arg archivo "$html_copy" '. + {archivo:$archivo}' "$tmp"
+        return ;;
       204) ;;
-      404)
-        # ¿No existe el plan, o esta instancia todavía no implementa acciones?
-        if [[ "$(http GET "/api/planes/$1")" == 200 ]]; then
-          die "el plan $1 existe pero esta instancia de Borrador no implementa acciones (watch/resolve). El plan quedó publicado; informale al usuario y detenete."
-        fi
-        die "plan $1 no encontrado en $base_url" ;;
+      404) die "el plan $id ya no existe en $base_url" ;;
       401|403) ok "$status" ;;
       *) sleep 3 ;;
     esac
   done
 }
 
-fetch() {
-  [[ $# -eq 1 && "$1" == /* ]] || usage
-  ok "$(http GET "$1")"
-  cat "$tmp"
-}
-
-resolve() {
-  [[ $# -eq 1 || ( $# -eq 2 && -r "$2" ) ]] || usage
-  local body='{}'
-  [[ $# -eq 2 ]] && body="$(jq -cn --rawfile html "$2" '{contenidoHtml:$html}')"
-  ok "$(http POST "/api/acciones/$1/resolver" "$body")"
-  jq -c . "$tmp"
-}
-
 cmd="${1:-}"; shift || true
-case "$cmd" in publish|watch|fetch|resolve) ;; *) usage ;; esac
-
 command -v curl >/dev/null && command -v jq >/dev/null || die "se necesitan curl y jq"
 [[ -n "$base_url" ]] || die "definí BORRADOR_URL o creá ~/.config/borrador/url"
 token="${BORRADOR_TOKEN:-$(cat "$HOME/.config/borrador/token" 2>/dev/null || true)}"
 [[ -n "$token" ]] || die "definí BORRADOR_TOKEN o creá ~/.config/borrador/token"
-"$cmd" "$@"
+case "$cmd" in
+  publish) publish "$@" ;;
+  wait) wait_action "$@" ;;
+  *) usage ;;
+esac
