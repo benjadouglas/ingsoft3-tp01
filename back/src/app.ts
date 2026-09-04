@@ -1,10 +1,17 @@
 import { Elysia, t } from "elysia";
-import { auth } from "./auth";
-import { generarApiKey, usuarioPorApiKey } from "./services/apiKey";
+import { auth, authenticate } from "./auth";
+import { generarApiKey } from "./services/apiKey";
+import {
+    comentar,
+    crearAccion,
+    listarComentarios,
+    nuevaVersion,
+    obtenerHtmlVersion,
+    siguienteAccion,
+} from "./services/acciones";
 import {
     listarPlanes,
     obtenerHtmlActual,
-    obtenerOCrearProyecto,
     publicarPlan,
 } from "./services/planes";
 
@@ -15,13 +22,7 @@ export const app = new Elysia({ prefix: "/api" })
     .macro({
         usuario: {
             async resolve({ status, request }) {
-                const bearer = request.headers
-                    .get("authorization")
-                    ?.match(/^Bearer (.+)$/i)?.[1];
-                const usuario = bearer
-                    ? await usuarioPorApiKey(bearer)
-                    : (await auth.api.getSession({ headers: request.headers }))
-                          ?.user;
+                const usuario = await authenticate(request.headers);
                 if (!usuario) return status(401);
                 return { usuario };
             },
@@ -39,22 +40,11 @@ export const app = new Elysia({ prefix: "/api" })
         },
         { usuario: true },
     )
+    // Agente: publica un plan nuevo (v1) en el proyecto, creándolo por nombre si no existe.
     .post(
-        "/proyectos",
-        ({ body, usuario }) => obtenerOCrearProyecto(usuario.id, body.nombre),
-        {
-            body: t.Object({ nombre: t.String({ minLength: 1 }) }),
-            usuario: true,
-        },
-    )
-    .post(
-        "/proyectos/:id/planes",
-        async ({ params, body, usuario, status }) => {
-            const plan = await publicarPlan(usuario.id, {
-                proyectoId: params.id,
-                ...body,
-            });
-            if (!plan) return status(404, "Proyecto no encontrado");
+        "/planes",
+        async ({ body, usuario, status }) => {
+            const plan = await publicarPlan(usuario.id, body);
             return status(201, {
                 id: plan.id,
                 url: `/planes/${plan.id}`,
@@ -62,11 +52,9 @@ export const app = new Elysia({ prefix: "/api" })
             });
         },
         {
-            params: t.Object({ id: t.String({ format: "uuid" }) }),
             body: t.Object({
-                titulo: t.String({ minLength: 1 }),
+                proyecto: t.String({ minLength: 1 }),
                 contenidoHtml: t.String({ minLength: 1 }),
-                sessionId: t.Optional(t.String()),
             }),
             usuario: true,
         },
@@ -85,6 +73,122 @@ export const app = new Elysia({ prefix: "/api" })
         },
         {
             params: t.Object({ id: t.String({ format: "uuid" }) }),
+            usuario: true,
+        },
+    )
+    .get(
+        "/planes/:id/versiones/:n/contenido",
+        async ({ params, usuario, status }) => {
+            const html = await obtenerHtmlVersion(
+                usuario.id,
+                params.id,
+                params.n,
+            );
+            if (html === undefined) return status(404, "Versión no encontrada");
+            return new Response(html, {
+                headers: { "content-type": "text/html; charset=utf-8" },
+            });
+        },
+        {
+            params: t.Object({
+                id: t.String({ format: "uuid" }),
+                n: t.Integer({ minimum: 1 }),
+            }),
+            usuario: true,
+        },
+    )
+    // Comentarios: solo el dueño, solo en su turno, siempre sobre la versión actual.
+    .get(
+        "/planes/:id/comentarios",
+        async ({ params, usuario, status }) => {
+            const lista = await listarComentarios(usuario.id, params.id);
+            return lista ?? status(404, "Plan no encontrado");
+        },
+        {
+            params: t.Object({ id: t.String({ format: "uuid" }) }),
+            usuario: true,
+        },
+    )
+    .post(
+        "/planes/:id/comentarios",
+        async ({ params, body, usuario, status }) => {
+            const r = await comentar(usuario.id, params.id, body);
+            if (r === "no_encontrado") return status(404, "Plan no encontrado");
+            if (r === "no_es_tu_turno")
+                return status(409, "El plan no está en tu turno");
+            return status(201, r);
+        },
+        {
+            params: t.Object({ id: t.String({ format: "uuid" }) }),
+            body: t.Union([
+                t.Object({ texto: t.String({ minLength: 1 }) }),
+                t.Object({
+                    bloqueId: t.String({ minLength: 1 }),
+                    fragmento: t.String(),
+                    texto: t.String({ minLength: 1 }),
+                }),
+            ]),
+            usuario: true,
+        },
+    )
+    // Acciones: el usuario cierra su turno; el agente espera con long-poll y resuelve.
+    .post(
+        "/planes/:id/acciones",
+        async ({ params, body, usuario, status }) => {
+            const r = await crearAccion(usuario.id, params.id, body.tipo);
+            if (r === "no_encontrado") return status(404, "Plan no encontrado");
+            if (r === "no_es_tu_turno")
+                return status(409, "El plan no está en tu turno");
+            if (r === "pendiente")
+                return status(409, "Ya hay una acción pendiente");
+            return status(201, r);
+        },
+        {
+            params: t.Object({ id: t.String({ format: "uuid" }) }),
+            body: t.Object({
+                tipo: t.Union([t.Literal("refine"), t.Literal("implement")]),
+            }),
+            usuario: true,
+        },
+    )
+    // Agente: long-poll hasta que el usuario cierre su turno. Devuelve `{ tipo, comentarios }`.
+    .get(
+        "/planes/:id/acciones/siguiente",
+        async ({ params, query, usuario, status }) => {
+            const r = await siguienteAccion(
+                usuario.id,
+                params.id,
+                (query.wait ?? 25) * 1000,
+            );
+            if (r === undefined) return status(404, "Plan no encontrado");
+            if (r === null) return status(204);
+            return r;
+        },
+        {
+            params: t.Object({ id: t.String({ format: "uuid" }) }),
+            query: t.Object({
+                wait: t.Optional(t.Integer({ minimum: 0, maximum: 55 })),
+            }),
+            usuario: true,
+        },
+    )
+    // Agente: versión nueva. Cierra la acción pendiente y devuelve el turno al usuario.
+    .post(
+        "/planes/:id/versiones",
+        async ({ params, body, usuario, status }) => {
+            const r = await nuevaVersion(
+                usuario.id,
+                params.id,
+                body.contenidoHtml,
+            );
+            if (r === "no_encontrado") return status(404, "Plan no encontrado");
+            if (r === "no_es_tu_turno")
+                return status(409, "El plan no está en turno del agente");
+            return r;
+        },
+        {
+            params: t.Object({ id: t.String({ format: "uuid" }) }),
+            body: t.Object({ contenidoHtml: t.String({ minLength: 1 }) }),
             usuario: true,
         },
     );

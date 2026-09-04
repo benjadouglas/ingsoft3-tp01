@@ -2,52 +2,40 @@ import { and, desc, eq, max, sql } from "drizzle-orm";
 import { db } from "../db";
 import { plan, project, version } from "../db/schema";
 
-/** Devuelve el proyecto del usuario con ese nombre, creándolo si no existe. */
-export async function obtenerOCrearProyecto(userId: string, nombre: string) {
-    const [fila] = await db
-        .insert(project)
-        .values({ userId, name: nombre })
-        .onConflictDoUpdate({
-            target: [project.userId, project.name],
-            set: { name: nombre },
-        })
-        .returning({ id: project.id, nombre: project.name });
-    return fila;
+/** Título del plan: el `<title>` del documento, o el primer `<h1>`, o un fallback. */
+export function tituloDe(html: string): string {
+    const t =
+        html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ??
+        html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1];
+    return t?.replace(/<[^>]+>/g, "").trim() || "Plan sin título";
 }
 
-/** Crea un plan nuevo con su versión 1 y lo deja en `user_turn`. */
+/** Crea un plan nuevo con su versión 1 en `user_turn`, creando el proyecto por nombre si no existe. */
 export async function publicarPlan(
     userId: string,
-    input: {
-        proyectoId: string;
-        titulo: string;
-        contenidoHtml: string;
-        sessionId?: string;
-    },
+    input: { proyecto: string; contenidoHtml: string },
 ) {
-    const dueño = await db.query.project.findFirst({
-        where: and(
-            eq(project.id, input.proyectoId),
-            eq(project.userId, userId),
-        ),
-    });
-    if (!dueño) return;
     return db.transaction(async (tx) => {
+        const [proy] = await tx
+            .insert(project)
+            .values({ userId, name: input.proyecto })
+            .onConflictDoUpdate({
+                target: [project.userId, project.name],
+                set: { name: input.proyecto },
+            })
+            .returning({ id: project.id });
         const [creado] = await tx
             .insert(plan)
             .values({
-                projectId: input.proyectoId,
-                title: input.titulo,
-                sessionId: input.sessionId,
+                projectId: proy!.id,
+                title: tituloDe(input.contenidoHtml),
             })
             .returning({ id: plan.id });
-        await tx
-            .insert(version)
-            .values({
-                planId: creado!.id,
-                number: 1,
-                htmlContent: input.contenidoHtml,
-            });
+        await tx.insert(version).values({
+            planId: creado!.id,
+            number: 1,
+            htmlContent: input.contenidoHtml,
+        });
         return { id: creado!.id, version: 1 };
     });
 }

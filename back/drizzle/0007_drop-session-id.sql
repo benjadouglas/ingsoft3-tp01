@@ -1,0 +1,1 @@
+ALTER TABLE "plan" DROP COLUMN "session_id";

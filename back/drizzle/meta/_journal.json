@@ -50,6 +50,13 @@
       "when": 1788454334658,
       "tag": "0006_data-model",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788529414043,
+      "tag": "0007_drop-session-id",
+      "breakpoints": true
     }
   ]
 }
