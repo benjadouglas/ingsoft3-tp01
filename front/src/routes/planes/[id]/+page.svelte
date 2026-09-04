@@ -196,7 +196,18 @@
             enviando = false;
         }
     }
+
+    // Cmd+Enter refina, Shift+Cmd+Enter implementa
+    function atajo(e: KeyboardEvent) {
+        if (e.key !== "Enter" || !(e.metaKey || e.ctrlKey)) return;
+        if (!esMiTurno || enviando) return;
+        e.preventDefault();
+        if (abierto && texto.trim()) comentar();
+        accion(e.shiftKey ? "implement" : "refine");
+    }
 </script>
+
+<svelte:window onkeydown={atajo} />
 
 <svelte:head>
     <title>{data.titulo}</title>
