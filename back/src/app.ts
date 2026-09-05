@@ -14,6 +14,7 @@ import {
     obtenerHtmlActual,
     publicarPlan,
 } from "./services/planes";
+import { eventosDe } from "./services/eventos";
 
 export const app = new Elysia({ prefix: "/api" })
     .all("/auth/*", ({ request }) => auth.handler(request))
@@ -68,6 +69,12 @@ export const app = new Elysia({ prefix: "/api" })
     .get("/planes", ({ usuario }) => listarPlanes(usuario.id), {
         usuario: true,
     })
+    // Browser: SSE con `plan_nuevo` / `version_nueva` para refrescar sin recargar.
+    .get(
+        "/planes/eventos",
+        ({ usuario, request }) => eventosDe(usuario.id, request.signal),
+        { usuario: true },
+    )
     .get(
         "/planes/:id",
         async ({ params, usuario, status }) => {

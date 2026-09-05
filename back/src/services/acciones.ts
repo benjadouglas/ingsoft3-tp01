@@ -2,6 +2,7 @@ import { and, desc, eq, max } from "drizzle-orm";
 import { db } from "../db";
 import { action, comment, plan, project, version } from "../db/schema";
 import type { Sesion } from "./planes";
+import { notificar } from "./eventos";
 
 type Tipo = (typeof action.$inferSelect)["type"];
 
@@ -146,10 +147,7 @@ function comentariosDe(versionId: string) {
  * Lo que el agente recibe: el tipo de acción y los comentarios del usuario.
  * El HTML no viaja de vuelta: la fuente de verdad es la copia del agente.
  */
-async function accionPendiente(p: {
-    id: string;
-    estado: string;
-}): Promise<{
+async function accionPendiente(p: { id: string; estado: string }): Promise<{
     tipo: Tipo;
     comentarios: Awaited<ReturnType<typeof comentariosDe>>;
 } | null> {
@@ -221,7 +219,7 @@ export async function nuevaVersion(
         .select({ id: action.id, versionId: action.versionId })
         .from(action)
         .where(and(eq(action.planId, planId), eq(action.consumed, false)));
-    return db.transaction(async (tx) => {
+    const creada = await db.transaction(async (tx) => {
         const [{ ultima }] = await tx
             .select({ ultima: max(version.number).mapWith(Number) })
             .from(version)
@@ -248,6 +246,8 @@ export async function nuevaVersion(
             .where(eq(plan.id, planId));
         return { version: numero };
     });
+    notificar(userId, { tipo: "version_nueva", planId });
+    return creada;
 }
 
 // ---- Versiones -------------------------------------------------------------

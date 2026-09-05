@@ -1,6 +1,7 @@
 import { and, desc, eq, max, sql } from "drizzle-orm";
 import { db } from "../db";
 import { plan, project, version } from "../db/schema";
+import { notificar } from "./eventos";
 
 /** Título del plan: el `<title>` del documento, o el primer `<h1>`, o un fallback. */
 export function tituloDe(html: string): string {
@@ -22,7 +23,7 @@ export async function publicarPlan(
     userId: string,
     input: { proyecto: string; contenidoHtml: string; sesion: Sesion },
 ) {
-    return db.transaction(async (tx) => {
+    const creado = await db.transaction(async (tx) => {
         const [proy] = await tx
             .insert(project)
             .values({ userId, name: input.proyecto })
@@ -49,6 +50,8 @@ export async function publicarPlan(
         });
         return { id: creado!.id, version: 1 };
     });
+    notificar(userId, { tipo: "plan_nuevo", planId: creado.id });
+    return creado;
 }
 
 /** HTML de la versión actual del plan, si pertenece al usuario. */
