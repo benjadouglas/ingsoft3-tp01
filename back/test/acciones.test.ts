@@ -462,3 +462,32 @@ describe("pertenencia a la sesión", () => {
         }
     }, 15000);
 });
+
+describe("eventos", () => {
+    test("el browser recibe version_nueva cuando el agente publica", async () => {
+        const id = await planNuevo();
+        await api("POST", `/planes/${id}/acciones`, { tipo: "refine" });
+        const ctrl = new AbortController();
+        const res = await app.handle(
+            new Request("http://test/api/planes/eventos", {
+                headers: { authorization: `Bearer ${clave}` },
+                signal: ctrl.signal,
+            }),
+        );
+        expect(res.status).toBe(200);
+        // En `app.handle` los chunks del stream llegan como string, no como bytes.
+        const lector = res.body!.getReader();
+        expect(String((await lector.read()).value)).toContain(
+            "event: conectado",
+        );
+        await api("POST", `/planes/${id}/versiones`, {
+            contenidoHtml: "<title>t</title><section id='a'>v2</section>",
+            sesion,
+        });
+        const { value } = await lector.read();
+        const chunk = String(value);
+        expect(chunk).toContain("event: version_nueva");
+        expect(chunk).toContain(id);
+        ctrl.abort();
+    });
+});

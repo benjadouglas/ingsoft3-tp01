@@ -15,7 +15,8 @@ type PlanResumen = {
     sesionDirectorio: string | null;
 };
 
-export const load: PageLoad = async ({ params, fetch }) => {
+export const load: PageLoad = async ({ params, fetch, depends }) => {
+    depends("app:planes");
     const [html, planes] = await Promise.all([
         fetch(`/api/planes/${params.id}`),
         fetch("/api/planes"),
