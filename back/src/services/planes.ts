@@ -10,10 +10,17 @@ export function tituloDe(html: string): string {
     return t?.replace(/<[^>]+>/g, "").trim() || "Plan sin título";
 }
 
+export type Sesion = {
+    harness: string;
+    id: string;
+    titulo?: string;
+    directorio?: string;
+};
+
 /** Crea un plan nuevo con su versión 1 en `user_turn`, creando el proyecto por nombre si no existe. */
 export async function publicarPlan(
     userId: string,
-    input: { proyecto: string; contenidoHtml: string },
+    input: { proyecto: string; contenidoHtml: string; sesion: Sesion },
 ) {
     return db.transaction(async (tx) => {
         const [proy] = await tx
@@ -29,6 +36,10 @@ export async function publicarPlan(
             .values({
                 projectId: proy!.id,
                 title: tituloDe(input.contenidoHtml),
+                harness: input.sesion.harness,
+                sessionId: input.sesion.id,
+                sessionTitle: input.sesion.titulo,
+                sessionDir: input.sesion.directorio,
             })
             .returning({ id: plan.id });
         await tx.insert(version).values({
@@ -65,6 +76,10 @@ export async function listarPlanes(userId: string) {
             estado: plan.state,
             version: max(version.number).mapWith(Number),
             actualizadoEl: sql<string>`max(${version.createdAt})`,
+            harness: plan.harness,
+            sesionId: plan.sessionId,
+            sesionTitulo: plan.sessionTitle,
+            sesionDirectorio: plan.sessionDir,
         })
         .from(plan)
         .innerJoin(project, eq(plan.projectId, project.id))

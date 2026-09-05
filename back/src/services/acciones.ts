@@ -1,13 +1,20 @@
 import { and, desc, eq, max } from "drizzle-orm";
 import { db } from "../db";
 import { action, comment, plan, project, version } from "../db/schema";
+import type { Sesion } from "./planes";
 
 type Tipo = (typeof action.$inferSelect)["type"];
 
 /** Plan del usuario, o undefined si no existe o es ajeno (ambos son 404). */
 async function planDelUsuario(userId: string, planId: string) {
     const [fila] = await db
-        .select({ id: plan.id, titulo: plan.title, estado: plan.state })
+        .select({
+            id: plan.id,
+            titulo: plan.title,
+            estado: plan.state,
+            harness: plan.harness,
+            sessionId: plan.sessionId,
+        })
         .from(plan)
         .innerJoin(project, eq(plan.projectId, project.id))
         .where(and(eq(plan.id, planId), eq(project.userId, userId)));
@@ -181,9 +188,12 @@ export async function siguienteAccion(
     userId: string,
     planId: string,
     waitMs: number,
+    sesion: Pick<Sesion, "harness" | "id">,
 ) {
     const p = await planDelUsuario(userId, planId);
     if (!p) return;
+    if (p.harness !== sesion.harness || p.sessionId !== sesion.id)
+        return "otra_sesion";
     const ahora = await accionPendiente(p);
     if (ahora) return ahora;
     await esperarAccion(planId, waitMs);
@@ -198,9 +208,14 @@ export async function nuevaVersion(
     userId: string,
     planId: string,
     contenidoHtml: string,
-): Promise<{ version: number } | "no_encontrado" | "no_es_tu_turno"> {
+    sesion: Pick<Sesion, "harness" | "id">,
+): Promise<
+    { version: number } | "no_encontrado" | "no_es_tu_turno" | "otra_sesion"
+> {
     const p = await planDelUsuario(userId, planId);
     if (!p) return "no_encontrado";
+    if (p.harness !== sesion.harness || p.sessionId !== sesion.id)
+        return "otra_sesion";
     if (p.estado !== "agent_turn") return "no_es_tu_turno";
     const [a] = await db
         .select({ id: action.id, versionId: action.versionId })

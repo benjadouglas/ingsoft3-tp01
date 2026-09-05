@@ -9,6 +9,10 @@ type PlanResumen = {
     titulo: string;
     version: number;
     estado: Estado;
+    harness: string | null;
+    sesionId: string | null;
+    sesionTitulo: string | null;
+    sesionDirectorio: string | null;
 };
 
 export const load: PageLoad = async ({ params, fetch }) => {
@@ -26,6 +30,14 @@ export const load: PageLoad = async ({ params, fetch }) => {
         titulo: plan.titulo,
         version: plan.version,
         estado: plan.estado,
+        sesion: plan.harness
+            ? {
+                  harness: plan.harness,
+                  sesionId: plan.sesionId,
+                  sesionTitulo: plan.sesionTitulo,
+                  sesionDirectorio: plan.sesionDirectorio,
+              }
+            : null,
         plan: prepararPlan(await html.text()),
     };
 };
