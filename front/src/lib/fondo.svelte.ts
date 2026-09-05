@@ -1,8 +1,7 @@
 import type { HalftoneCmykParams } from "@paper-design/shaders";
 
 // Fondo de /login y /planes: un mesh gradient animado que pasa por el shader de
-// semitono CMYK. Los valores de acá son los defaults; en dev aparece un panel
-// (botón abajo a la derecha) para ajustar la sombra del texto y copiar el JSON.
+// semitono CMYK. Los valores de acá definen el fondo y los títulos.
 export const fondo = $state({
     opacidad: 0.77,
     // Títulos de proyecto en /planes, sobre el fondo.

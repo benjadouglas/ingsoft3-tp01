@@ -14,7 +14,6 @@
     import { onMount, untrack } from "svelte";
     import { base } from "$app/paths";
     import { fondo } from "$lib/fondo.svelte";
-    import FondoPanel from "./fondo-panel.svelte";
 
     let animar = $state(false);
     let listo = $state(false);
@@ -269,7 +268,3 @@
         </div>
     {/if}
 </div>
-
-{#if import.meta.env.DEV}
-    <FondoPanel />
-{/if}
