@@ -2,7 +2,10 @@
     import * as Card from "$lib/components/ui/card";
     import { HugeiconsIcon } from "@hugeicons/svelte";
     import { File01Icon, Key01Icon } from "@hugeicons/core-free-icons";
+    import FondoGradiente from "$lib/components/fondo-gradiente.svelte";
 </script>
+
+<FondoGradiente />
 
 <main class="mx-auto w-full max-w-3xl px-4 py-10">
     <div class="grid gap-4 sm:grid-cols-2">
@@ -16,7 +19,7 @@
                         icon={File01Icon}
                         class="size-5 text-muted-foreground"
                     />
-                    <Card.Title class="mt-2">Planes</Card.Title>
+                    <Card.Title class="mt-2 ">Planes</Card.Title>
                     <Card.Description
                         >Todo lo que el agente publicó, por proyecto.</Card.Description
                     >

@@ -91,22 +91,25 @@
         {:else}
             <HugeiconsIcon icon={ComputerTerminal01Icon} class="size-4" />
         {/if}
-        <span class="mr-1 truncate font-medium">{nombre}</span>
+        <span class="truncate font-medium">{nombre}</span>
         {#if reabrible}
-            {#each modos as [valor, etiqueta] (valor)}
-                <button
-                    type="button"
-                    class={[
-                        "rounded-md px-2 py-0.5 text-xs",
-                        modo === valor
-                            ? "bg-background font-medium shadow-sm ring-1 ring-border"
-                            : "text-muted-foreground hover:text-foreground",
-                    ]}
-                    onclick={() => (modo = valor)}
-                >
-                    {etiqueta}
-                </button>
-            {/each}
+            <div class="ms-2 flex gap-0.5 rounded-md bg-muted p-0.5">
+                {#each modos as [valor, etiqueta] (valor)}
+                    <button
+                        type="button"
+                        aria-pressed={modo === valor}
+                        class={[
+                            "rounded-sm px-2 py-0.5 text-xs",
+                            modo === valor
+                                ? "bg-background font-medium shadow-sm ring-1 ring-border"
+                                : "text-muted-foreground hover:text-foreground",
+                        ]}
+                        onclick={() => (modo = valor)}
+                    >
+                        {etiqueta}
+                    </button>
+                {/each}
+            </div>
         {/if}
         <span class="flex-1"></span>
         <Button variant="ghost" size="icon-sm" onclick={copiar} aria-label="Copiar">

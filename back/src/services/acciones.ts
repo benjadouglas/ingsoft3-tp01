@@ -147,7 +147,10 @@ function comentariosDe(versionId: string) {
  * Lo que el agente recibe: el tipo de acción y los comentarios del usuario.
  * El HTML no viaja de vuelta: la fuente de verdad es la copia del agente.
  */
-async function accionPendiente(p: { id: string; estado: string }): Promise<{
+async function accionPendiente(
+    userId: string,
+    p: { id: string; estado: string },
+): Promise<{
     tipo: Tipo;
     comentarios: Awaited<ReturnType<typeof comentariosDe>>;
 } | null> {
@@ -157,6 +160,7 @@ async function accionPendiente(p: { id: string; estado: string }): Promise<{
             tipo: action.type,
             versionId: action.versionId,
             consumida: action.consumed,
+            entregada: action.deliveredAt,
         })
         .from(action)
         .where(eq(action.planId, p.id))
@@ -165,6 +169,14 @@ async function accionPendiente(p: { id: string; estado: string }): Promise<{
     // Un plan aprobado sin pendiente vuelve a entregar su `implement`: si el agente
     // murió justo después de recibirlo, al reconectar lo recupera.
     if (!a || (a.consumida && p.estado !== "approved")) return null;
+    // Primera entrega: queda registrada y el visor se entera de que el agente ya la tiene.
+    if (a.entregada === null) {
+        await db
+            .update(action)
+            .set({ deliveredAt: new Date() })
+            .where(eq(action.id, a.id));
+        notificar(userId, { tipo: "accion_entregada", planId: p.id });
+    }
     // `implement` es terminal: se consume al entregarlo, no hay nada que resolver.
     if (!a.consumida && a.tipo === "implement") {
         await db.transaction(async (tx) => {
@@ -192,10 +204,10 @@ export async function siguienteAccion(
     if (!p) return;
     if (p.harness !== sesion.harness || p.sessionId !== sesion.id)
         return "otra_sesion";
-    const ahora = await accionPendiente(p);
+    const ahora = await accionPendiente(userId, p);
     if (ahora) return ahora;
     await esperarAccion(planId, waitMs);
-    return accionPendiente(p);
+    return accionPendiente(userId, p);
 }
 
 /**

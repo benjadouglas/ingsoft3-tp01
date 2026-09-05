@@ -117,6 +117,8 @@ export const action = pgTable(
         createdAt: timestamp("created_at", { withTimezone: true })
             .notNull()
             .defaultNow(),
+        // Cuándo la recibió el agente. Antes de eso, el usuario solo sabe que la mandó.
+        deliveredAt: timestamp("delivered_at", { withTimezone: true }),
         consumedAt: timestamp("consumed_at", { withTimezone: true }),
     },
     (t) => [

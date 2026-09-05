@@ -9,6 +9,7 @@ type PlanResumen = {
     titulo: string;
     version: number;
     estado: Estado;
+    entregado: boolean;
     harness: string | null;
     sesionId: string | null;
     sesionTitulo: string | null;
@@ -31,6 +32,7 @@ export const load: PageLoad = async ({ params, fetch, depends }) => {
         titulo: plan.titulo,
         version: plan.version,
         estado: plan.estado,
+        entregado: plan.entregado,
         sesion: plan.harness
             ? {
                   harness: plan.harness,

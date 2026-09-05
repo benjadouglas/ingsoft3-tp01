@@ -1,6 +1,6 @@
 import { and, desc, eq, max, sql } from "drizzle-orm";
 import { db } from "../db";
-import { plan, project, version } from "../db/schema";
+import { action, plan, project, version } from "../db/schema";
 import { notificar } from "./eventos";
 
 /** Título del plan: el `<title>` del documento, o el primer `<h1>`, o un fallback. */
@@ -77,6 +77,8 @@ export async function listarPlanes(userId: string) {
             titulo: plan.title,
             proyecto: project.name,
             estado: plan.state,
+            // La acción pendiente ya llegó al agente (solo tiene sentido en agent_turn).
+            entregado: sql<boolean>`exists (select 1 from ${action} where ${action.planId} = ${plan.id} and ${action.consumed} = false and ${action.deliveredAt} is not null)`,
             version: max(version.number).mapWith(Number),
             actualizadoEl: sql<string>`max(${version.createdAt})`,
             harness: plan.harness,
