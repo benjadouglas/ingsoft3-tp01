@@ -71,6 +71,13 @@
       "when": 1788562749963,
       "tag": "0009_plan-sesion-dir",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788570333322,
+      "tag": "0010_accion-entregada",
+      "breakpoints": true
     }
   ]
 }

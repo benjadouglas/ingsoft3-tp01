@@ -5,6 +5,8 @@ type PlanResumen = {
     titulo: string;
     proyecto: string;
     version: number;
+    estado: "user_turn" | "agent_turn" | "approved";
+    entregado: boolean;
     actualizadoEl: string;
 };
 

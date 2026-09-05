@@ -8,6 +8,9 @@
     import { fragmentoDe } from "$lib/plan-html";
     import ComentarioToast from "./comentario-toast.svelte";
     import ReanudarSesion from "./reanudar-sesion.svelte";
+    import LoadingState from "$lib/components/loading-state.svelte";
+    import FondoGradiente from "$lib/components/fondo-gradiente.svelte";
+    import { fondo } from "$lib/fondo.svelte";
     import { HugeiconsIcon } from "@hugeicons/svelte";
     import {
         ArrowLeft01Icon,
@@ -15,8 +18,10 @@
         Comment01Icon,
         ComputerTerminal01Icon,
         RefreshIcon,
+        SentIcon,
         Tick02Icon,
     } from "@hugeicons/core-free-icons";
+    import { fade, fly } from "svelte/transition";
     // Comentario local. No viaja al servidor hasta Refinar/Implementar.
     type Pendiente = {
         id: string;
@@ -29,6 +34,8 @@
 
     // Derivado escribible: arranca del load y se pisa localmente al cerrar el turno.
     let estado = $derived(data.estado);
+    // Si el agente ya recibió la acción pendiente. Se resetea al cerrar el turno.
+    let entregado = $derived(data.entregado);
     let pendientes = $state<Pendiente[]>([]);
     let seleccionado = $state.raw<HTMLElement | null>(null);
     let scroller = $state.raw<HTMLDivElement | null>(null);
@@ -49,6 +56,17 @@
     });
 
     const esMiTurno = $derived(estado === "user_turn");
+    // Fase del turno del agente, para el pie: enviado → recibido → (versión nueva) mi turno,
+    // o aprobado si se cerró con Implementar.
+    const fase = $derived(
+        estado === "approved"
+            ? "aprobado"
+            : estado === "agent_turn"
+              ? entregado
+                  ? "recibido"
+                  : "enviado"
+              : "mi_turno",
+    );
 
     // Cada pendiente es un toast fijo (duration infinita) con el mismo id:
     // volver a llamar a toast.custom con ese id lo actualiza en lugar de duplicarlo.
@@ -194,6 +212,7 @@
                 return;
             }
             estado = tipo === "refine" ? "agent_turn" : "approved";
+            entregado = false;
         } finally {
             enviando = false;
         }
@@ -216,8 +235,10 @@
     {@html `<style>${data.plan.estilos}</style>`}
 </svelte:head>
 
+<FondoGradiente />
+
 <div class="flex h-dvh flex-col">
-    <header class="flex items-center gap-2 border-b bg-muted/40 px-2 py-1.5">
+    <header class="flex items-center gap-2 border-b bg-background/70 px-2 py-1.5 backdrop-blur">
         <Button variant="ghost" size="sm" href="/planes">
             <HugeiconsIcon icon={ArrowLeft01Icon} data-icon="inline-start" />
             Planes
@@ -227,16 +248,27 @@
     </header>
 
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div class="flex-1 overflow-auto" bind:this={scroller} onclick={tocar}>
-        <div class={["plan", esMiTurno && "plan-editable"]}>
+    <div class="flex-1 overflow-auto px-3" bind:this={scroller} onclick={tocar}>
+        <div class={["plan", esMiTurno && "plan-editable"]} style:--ancho-plan="{fondo.anchoPlan}rem">
             {@html data.plan.cuerpo}
         </div>
     </div>
 
     <footer
-        class="flex items-center gap-2 border-t bg-background px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+        class="flex flex-wrap items-center gap-x-3 gap-y-2 border-t bg-background px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
     >
         {#if esMiTurno}
+            <!-- Estado primero en el DOM y a ancho completo si los botones no entran en una fila. -->
+            <span
+                class="order-first basis-full text-xs text-muted-foreground sm:order-none sm:basis-auto sm:min-w-0 sm:flex-1 sm:truncate"
+            >
+                {#if pendientes.length === 0}
+                    Tocá un bloque para comentarlo
+                {:else}
+                    {pendientes.length}
+                    {pendientes.length === 1 ? "comentario" : "comentarios"}
+                {/if}
+            </span>
             <Button
                 variant="outline"
                 size="sm"
@@ -247,14 +279,7 @@
                 <HugeiconsIcon icon={Comment01Icon} data-icon="inline-start" />
                 Comentar
             </Button>
-            <span class="flex-1 truncate text-xs text-muted-foreground">
-                {#if pendientes.length === 0}
-                    Tocá un bloque para comentarlo
-                {:else}
-                    {pendientes.length}
-                    {pendientes.length === 1 ? "comentario" : "comentarios"}
-                {/if}
-            </span>
+            <span class="flex-1 sm:hidden"></span>
             <Button
                 variant="outline"
                 size="sm"
@@ -273,13 +298,25 @@
                 Implementar
             </Button>
         {:else}
-            <span class="flex-1 text-xs text-muted-foreground">
-                {#if estado === "agent_turn"}
-                    El agente está trabajando en la próxima versión.
-                {:else}
-                    Plan aprobado. El agente lo está implementando.
-                {/if}
-            </span>
+            <!-- Cada fase se apila en el mismo lugar y cruza en fundido con la siguiente. -->
+            <div class="relative min-h-6 flex-1">
+                {#key fase}
+                    <div
+                        class="absolute inset-0 flex items-center gap-1.5 text-xs text-muted-foreground"
+                        in:fly={{ y: 6, duration: 200, delay: 120 }}
+                        out:fade={{ duration: 120 }}
+                    >
+                        {#if fase === "enviado"}
+                            <HugeiconsIcon icon={SentIcon} class="size-3.5 shrink-0" />
+                            Enviado. Esperando que el agente lo reciba.
+                        {:else if fase === "recibido"}
+                            <LoadingState label="Refinando el plan" />
+                        {:else}
+                            Plan aprobado. El agente lo está implementando.
+                        {/if}
+                    </div>
+                {/key}
+            </div>
             {#if data.sesion}
                 <!-- Si el agente no responde, desde acá se reabre su conversación. -->
                 <Popover.Root>
@@ -310,17 +347,19 @@
             {/if}
         {/if}
         {#if error && !abierto}
-            <span class="text-xs text-destructive">{error}</span>
+            <span class="basis-full text-xs text-destructive">{error}</span>
         {/if}
     </footer>
 </div>
 
-<!-- Los comentarios pendientes viven acá, apilados, sin vencimiento. -->
+<!-- Los comentarios pendientes viven acá, apilados, sin vencimiento.
+     Sin tope al expandir; colapsados se ven tres (ver el :global de abajo). -->
 <Toaster
     position="bottom-right"
     duration={Number.POSITIVE_INFINITY}
-    offset={{ bottom: 60, right: 16 }}
-    mobileOffset={{ bottom: 60, right: 12 }}
+    visibleToasts={Math.max(3, pendientes.length)}
+    offset={{ bottom: "calc(3rem + env(safe-area-inset-bottom))", right: 16 }}
+    mobileOffset={{ bottom: "calc(3rem + env(safe-area-inset-bottom))", right: 12 }}
 />
 
 <Popover.Root
@@ -331,7 +370,7 @@
 >
     <Popover.Trigger class="sr-only" tabindex={-1}></Popover.Trigger>
     <Popover.Content
-        class="w-80 gap-0 border-0 bg-transparent p-0 shadow-none ring-0"
+        class="w-[min(20rem,calc(100vw-1.5rem))] gap-0 border-0 bg-transparent p-0 shadow-none ring-0"
         side="top"
         align="start"
         sideOffset={16}
@@ -382,6 +421,23 @@
 </Popover.Root>
 
 <style>
+    /* Colapsados, del cuarto en adelante quedan escondidos detrás de la pila. */
+    :global([data-sonner-toast][data-expanded="false"]:nth-child(n + 4)) {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    /* El plan entero es la tarjeta sobre el gradiente. Conserva el fondo que
+       trae su propio body (puede ser oscuro); adentro se acomoda como quiera. */
+    .plan {
+        max-width: var(--ancho-plan);
+        margin: 1.5rem auto;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
+    }
+
     /* Sobre el HTML del plan, que llega vía {@html}: de ahí el :global. */
     .plan :global([id]) {
         position: relative;

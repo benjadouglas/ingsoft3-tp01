@@ -20,7 +20,7 @@
 
 {#if data.usuario && !page.url.pathname.startsWith("/planes/")}
     <div class="flex min-h-dvh flex-col">
-        <header class="border-b">
+        <header class="border-b bg-background">
             <div class="mx-auto flex h-12 max-w-3xl items-center gap-6 px-4">
                 <a
                     href="/"
