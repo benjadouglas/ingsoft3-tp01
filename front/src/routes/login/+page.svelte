@@ -1,24 +1,28 @@
 <script lang="ts">
-    import * as Card from "$lib/components/ui/card";
     import GoogleButton from "$lib/components/GoogleButton.svelte";
     import { signInWithGoogle } from "$lib/auth-client";
     import FondoGradiente from "$lib/components/fondo-gradiente.svelte";
+    import { fondo } from "$lib/fondo.svelte";
+
+    // Mismo halo blanco apilado que usan los títulos de proyecto en /planes.
+    const sombra = $derived(
+        fondo.titulo.sombra === 0
+            ? "none"
+            : Array(4).fill(`0 0 ${fondo.titulo.sombra}px #fff`).join(", "),
+    );
 </script>
 
 <main
     class="flex min-h-dvh flex-col items-center justify-center gap-6 p-6"
 >
     <FondoGradiente />
-    <span class="font-mono text-3xl font-semibold tracking-tight">htmlplan</span>
-    <Card.Root class="w-full max-w-sm">
-        <Card.Header class="text-center">
-            <Card.Title class="text-lg">Iniciar sesión</Card.Title>
-            <Card.Description
-                >Elegí tu cuenta de Google para continuar.</Card.Description
-            >
-        </Card.Header>
-        <Card.Content>
-            <GoogleButton onclick={() => signInWithGoogle()} />
-        </Card.Content>
-    </Card.Root>
+    <span
+        class="font-mono text-3xl font-semibold tracking-tight"
+        style:text-shadow={sombra}>htmlplan</span
+    >
+    <div class="w-68 max-w-full">
+        <GoogleButton
+            onclick={() => signInWithGoogle()}
+        />
+    </div>
 </main>
