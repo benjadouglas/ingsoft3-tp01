@@ -14,7 +14,7 @@
     type="button"
     {onclick}
     {disabled}
-    class="flex h-10 w-full items-center justify-center rounded-md border border-border bg-white pr-3 pl-3 text-sm font-medium text-[#1F1F1F] transition-colors hover:bg-[#f7f7f7] focus-visible:ring-2 focus-visible:ring-[#4285F4]/40 focus-visible:outline-none disabled:opacity-50"
+    class="flex h-11 w-full items-center justify-center rounded-md border border-border bg-white pr-3 pl-3 text-sm font-medium text-[#1F1F1F] cursor-pointer transition-colors hover:bg-[#f7f7f7] focus-visible:ring-2 focus-visible:ring-[#4285F4]/40 focus-visible:outline-none disabled:opacity-50"
     style="font-family: 'Roboto', 'Inter Variable', system-ui, sans-serif"
 >
     <svg
