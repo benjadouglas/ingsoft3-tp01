@@ -1,42 +1,47 @@
-# sv
+# Frontend
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+SvelteKit + Svelte 5 + Tailwind CSS, con Vite+ 0.3.0 y Bun como gestor de paquetes.
 
-## Creating a project
-
-If you're seeing this, you've probably already done this step. Congrats!
-
-```sh
-# create a new project
-npx sv create my-app
-```
-
-To recreate this project with the same configuration:
+Instalá la CLI `vp` siguiendo la [guía de Vite+](https://viteplus.dev/guide/).
+Desde `front/`, Vite+ usa la versión de Node de `.node-version` y la versión de
+Bun declarada en `package.json`.
 
 ```sh
-# recreate this project
-bun x sv@0.17.0 create --template minimal --types ts --add vitest="usages:component" tailwindcss="plugins:none" drizzle="database:postgresql+postgresql:postgres.js+docker:yes" better-auth="demo:none" --install bun front
+vp install --frozen-lockfile
+vp dev
 ```
 
-## Developing
+El proxy `/api` apunta al backend en `http://localhost:3000`.
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+## Verificación
 
 ```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
+vp run check       # Tipos y diagnósticos de Svelte
+vp check           # Formato y lint
+vp test run        # Tests de componentes en Chromium
+vp build           # Build estático en build/
+vp preview         # Servir el build localmente
 ```
 
-## Building
-
-To create a production version of your app:
+Para instalar Chromium si todavía no está disponible:
 
 ```sh
-npm run build
+vp exec playwright install chromium
 ```
 
-You can preview the production build with `npm run preview`.
+`vp check` es el comando integrado de Vite+; `vp run check` ejecuta
+`svelte-check`. Mantenemos este último porque el chequeo genérico de TypeScript
+no resuelve los exports de archivos `.svelte`.
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+`vp lint` revisa el código y `vp fmt` aplica formato. Los scripts también se
+pueden ejecutar con `bun run dev`, `bun run build` y `bun run test`.
+
+## Docker
+
+Desde la raíz del repositorio:
+
+```sh
+docker build -t ingsoft3-front ./front
+```
+
+La imagen de Vite+ construye el sitio y Nginx sirve los archivos estáticos.

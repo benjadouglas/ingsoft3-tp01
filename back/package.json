@@ -17,5 +17,12 @@
         "bun-types": "latest",
         "drizzle-kit": "^0.31.10"
     },
-    "module": "src/index.ts"
+    "module": "src/index.ts",
+    "devEngines": {
+        "packageManager": {
+            "name": "bun",
+            "version": "1.4.2",
+            "onFail": "download"
+        }
+    }
 }
