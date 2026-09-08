@@ -74,7 +74,7 @@
                     >
                         {proyecto}
                     </h2>
-                    <ul class="divide-y rounded-lg border bg-card">
+                    <ul class="divide-y rounded-lg border border-black/25 bg-card shadow-lg">
                         {#each planes as plan (plan.id)}
                             <li>
                                 <a
