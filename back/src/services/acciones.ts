@@ -103,6 +103,7 @@ export async function crearAccion(
     userId: string,
     planId: string,
     tipo: Tipo,
+    comentarios?: { bloqueId: string | null; fragmento: string | null; texto: string }[],
 ): Promise<{ id: string } | "no_encontrado" | "no_es_tu_turno" | "pendiente"> {
     const p = await planDelUsuario(userId, planId);
     if (!p) return "no_encontrado";
@@ -110,6 +111,17 @@ export async function crearAccion(
     const v = await versionActual(planId);
     try {
         const creada = await db.transaction(async (tx) => {
+            if (comentarios) {
+                await tx.delete(comment).where(eq(comment.versionId, v.id));
+                if (comentarios.length) {
+                    await tx.insert(comment).values(comentarios.map((c) => ({
+                        versionId: v.id,
+                        blockId: c.bloqueId,
+                        fragment: c.fragmento,
+                        text: c.texto,
+                    })));
+                }
+            }
             const [a] = await tx
                 .insert(action)
                 .values({ planId, versionId: v.id, type: tipo })
@@ -208,6 +220,43 @@ export async function siguienteAccion(
     if (ahora) return ahora;
     await esperarAccion(planId, waitMs);
     return accionPendiente(userId, p);
+}
+
+/**
+ * El agente (o el bridge que le habla) no pudo tomar la acción: estaba ocupado.
+ * Se borra la última acción y el plan vuelve a `user_turn` con los comentarios
+ * tal como estaban, sin atender, para que el usuario la vuelva a enviar.
+ */
+export async function rebotarAccion(
+    userId: string,
+    planId: string,
+    sesion: Pick<Sesion, "harness" | "id">,
+): Promise<"ok" | "no_encontrado" | "otra_sesion" | "sin_accion"> {
+    const p = await planDelUsuario(userId, planId);
+    if (!p) return "no_encontrado";
+    if (p.harness !== sesion.harness || p.sessionId !== sesion.id)
+        return "otra_sesion";
+    if (p.estado === "user_turn") return "sin_accion";
+    const [a] = await db
+        .select({ id: action.id, versionId: action.versionId })
+        .from(action)
+        .where(eq(action.planId, planId))
+        .orderBy(desc(action.createdAt))
+        .limit(1);
+    if (!a) return "sin_accion";
+    await db.transaction(async (tx) => {
+        await tx.delete(action).where(eq(action.id, a.id));
+        await tx
+            .update(comment)
+            .set({ attended: false })
+            .where(eq(comment.versionId, a.versionId));
+        await tx
+            .update(plan)
+            .set({ state: "user_turn" })
+            .where(eq(plan.id, planId));
+    });
+    notificar(userId, { tipo: "accion_rebotada", planId });
+    return "ok";
 }
 
 /**

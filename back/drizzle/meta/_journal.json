@@ -78,6 +78,13 @@
       "when": 1788570333322,
       "tag": "0010_accion-entregada",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788839820905,
+      "tag": "0011_plan-sesion-url",
+      "breakpoints": true
     }
   ]
 }

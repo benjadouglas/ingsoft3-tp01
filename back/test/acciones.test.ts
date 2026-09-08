@@ -44,7 +44,7 @@ async function api(
     return { status: res.status, json };
 }
 
-const sesion = { harness: "codex", id: "sesion-test" };
+const sesion = { harness: "t3code", id: "sesion-test" };
 
 const proyecto = `p-${crypto.randomUUID()}`;
 
@@ -102,6 +102,7 @@ describe("publicar", () => {
             id: "abc",
             titulo: "Plan t",
             directorio: "/repo",
+            url: "http://t3.local:3773/env/abc",
         };
         const { json } = await api("POST", "/planes", {
             proyecto,
@@ -114,6 +115,7 @@ describe("publicar", () => {
             sesionId: "abc",
             sesionTitulo: "Plan t",
             sesionDirectorio: "/repo",
+            sesionUrl: "http://t3.local:3773/env/abc",
         });
     });
 });
@@ -278,6 +280,92 @@ describe("comentarios y acciones", () => {
         ).toBe(409);
     });
 
+    test("rebotar deshace la acción: vuelve a user_turn con los comentarios sin atender", async () => {
+        const id = await planNuevo();
+        await api("POST", `/planes/${id}/comentarios`, { texto: "dale" });
+        // Sin acción no hay nada que rebotar.
+        expect(
+            (await api("POST", `/planes/${id}/acciones/rebotar`, { sesion }))
+                .status,
+        ).toBe(409);
+        for (const tipo of ["refine", "implement"] as const) {
+            await api("POST", `/planes/${id}/acciones`, { tipo });
+            // Incluso ya entregado y consumido (implement), el rebote lo deshace.
+            await api(
+                "GET",
+                `/planes/${id}/acciones/siguiente?wait=0&harness=${sesion.harness}&id=${sesion.id}`,
+            );
+            expect(
+                (
+                    await api("POST", `/planes/${id}/acciones/rebotar`, {
+                        sesion: { harness: "claude-code", id: sesion.id },
+                    })
+                ).status,
+            ).toBe(403);
+            expect(
+                (
+                    await api("POST", `/planes/${id}/acciones/rebotar`, {
+                        sesion,
+                    })
+                ).status,
+            ).toBe(204);
+            const lista = (await api("GET", "/planes")).json;
+            expect(lista.find((p: any) => p.id === id).estado).toBe(
+                "user_turn",
+            );
+            expect(
+                (await api("GET", `/planes/${id}/comentarios`)).json.map(
+                    (c: any) => c.atendido,
+                ),
+            ).toEqual([false]);
+            expect(
+                (
+                    await api(
+                        "GET",
+                        `/planes/${id}/acciones/siguiente?wait=0&harness=${sesion.harness}&id=${sesion.id}`,
+                    )
+                ).status,
+            ).toBe(204);
+        }
+        // Se puede volver a enviar.
+        expect(
+            (await api("POST", `/planes/${id}/acciones`, { tipo: "refine" }))
+                .status,
+        ).toBe(201);
+    });
+
+    test("tras rebotar se pueden editar y borrar comentarios sin duplicarlos al reenviar", async () => {
+        const id = await planNuevo();
+        const comentarios = [
+            { bloqueId: "a", fragmento: "v1", texto: "corregir" },
+            { bloqueId: null, fragmento: null, texto: "borrar" },
+        ];
+        expect((await api("POST", `/planes/${id}/acciones`, {
+            tipo: "refine", comentarios,
+        })).status).toBe(201);
+        expect((await api("POST", `/planes/${id}/acciones`, {
+            tipo: "refine", comentarios: [],
+        })).status).toBe(409);
+        expect((await api("POST", `/planes/${id}/acciones/rebotar`, { sesion })).status).toBe(204);
+        const guardados = (await api("GET", `/planes/${id}/comentarios`)).json;
+        expect(guardados.map((c: { texto: string }) => c.texto)).toEqual(["corregir", "borrar"]);
+        expect(guardados.every((c: { atendido: boolean }) => !c.atendido)).toBe(true);
+
+        const editados = [{ ...comentarios[0], texto: "corregido" }];
+        expect((await api("POST", `/planes/${id}/acciones`, {
+            tipo: "refine", comentarios: editados,
+        })).status).toBe(201);
+        const entrega = await api("GET", `/planes/${id}/acciones/siguiente?wait=0&harness=${sesion.harness}&id=${sesion.id}`);
+        expect(entrega.json.comentarios).toHaveLength(1);
+        expect(entrega.json.comentarios[0].texto).toBe("corregido");
+
+        await api("POST", `/planes/${id}/acciones/rebotar`, { sesion });
+        expect((await api("POST", `/planes/${id}/acciones`, {
+            tipo: "implement", comentarios: [],
+        })).status).toBe(201);
+        expect((await api("GET", `/planes/${id}/comentarios`)).json).toEqual([]);
+    });
+
     test("el long-poll despierta cuando se crea la acción mientras espera", async () => {
         const id = await planNuevo();
         const espera = api(
@@ -308,7 +396,7 @@ describe("pertenencia a la sesión", () => {
                 .status,
         ).toBe(422);
         for (const otra of [
-            { harness: "codex", id: "otra" },
+            { harness: "t3code", id: "otra" },
             { harness: "claude-code", id: sesion.id },
         ]) {
             expect(

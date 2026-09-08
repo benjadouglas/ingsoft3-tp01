@@ -21,6 +21,7 @@
         SentIcon,
         Tick02Icon,
     } from "@hugeicons/core-free-icons";
+    import { untrack } from "svelte";
     import { fade, fly } from "svelte/transition";
     // Comentario local. No viaja al servidor hasta Refinar/Implementar.
     type Pendiente = {
@@ -37,6 +38,17 @@
     // Si el agente ya recibió la acción pendiente. Se resetea al cerrar el turno.
     let entregado = $derived(data.entregado);
     let pendientes = $state<Pendiente[]>([]);
+    // Refrescar otro plan no debe pisar el borrador local.
+    const turno = $derived(`${data.id}:${data.version}:${data.estado}`);
+    $effect(() => {
+        turno;
+        untrack(() => {
+            for (const c of pendientes) {
+                toast.dismiss(c.id);
+            }
+            pendientes = data.estado === "user_turn" ? [...data.comentarios] : [];
+        });
+    });
     let seleccionado = $state.raw<HTMLElement | null>(null);
     let scroller = $state.raw<HTMLDivElement | null>(null);
     let anclaGeneral = $state.raw<HTMLElement | null>(null);
@@ -180,33 +192,17 @@
         });
     }
 
-    // Recién acá viajan los comentarios: primero todos, después la acción.
+    // Guarda la lista completa junto con la acción: incluye ediciones y borrados.
     async function accion(tipo: "refine" | "implement") {
         enviando = true;
         error = null;
         try {
-            for (const c of pendientes) {
-                const body =
-                    c.bloqueId !== null
-                        ? {
-                              bloqueId: c.bloqueId,
-                              fragmento: c.fragmento ?? "",
-                              texto: c.texto,
-                          }
-                        : { texto: c.texto };
-                const res = await post("comentarios", body);
-                if (!res.ok) {
-                    error =
-                        res.status === 409
-                            ? "El plan ya no está en tu turno."
-                            : "No se pudo guardar un comentario.";
-                    return;
-                }
-                // Ya está en el servidor: si el próximo falla, no se reenvía al reintentar.
-                pendientes = pendientes.filter((p) => p.id !== c.id);
-                toast.dismiss(c.id);
-            }
-            const res = await post("acciones", { tipo });
+            const comentarios = pendientes.map(({ bloqueId, fragmento, texto }) => ({
+                bloqueId,
+                fragmento,
+                texto,
+            }));
+            const res = await post("acciones", { tipo, comentarios });
             if (!res.ok) {
                 error = "No se pudo cerrar el turno.";
                 return;

@@ -54,6 +54,8 @@ export const plan = pgTable("plan", {
     sessionTitle: text("session_title"),
     // Directorio donde corría el agente: el resume de los harness es por proyecto.
     sessionDir: text("session_dir"),
+    // Link directo a la conversación cuando el harness lo ofrece (T3 Code: su app web).
+    sessionUrl: text("session_url"),
     createdAt: timestamp("created_at", { withTimezone: true })
         .notNull()
         .defaultNow(),

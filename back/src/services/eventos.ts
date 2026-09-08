@@ -3,7 +3,11 @@ import { sse } from "elysia";
 // Canal en memoria por usuario: el browser escucha por SSE y se entera cuando
 // un agente publica un plan o una versión nueva. Una sola instancia del servidor por diseño.
 type Evento = {
-    tipo: "plan_nuevo" | "version_nueva" | "accion_entregada";
+    tipo:
+        | "plan_nuevo"
+        | "version_nueva"
+        | "accion_entregada"
+        | "accion_rebotada";
     planId: string;
 };
 

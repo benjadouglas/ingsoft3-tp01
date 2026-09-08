@@ -7,6 +7,7 @@ import {
     listarComentarios,
     nuevaVersion,
     obtenerHtmlVersion,
+    rebotarAccion,
     siguienteAccion,
 } from "./services/acciones";
 import {
@@ -61,6 +62,7 @@ export const app = new Elysia({ prefix: "/api" })
                     id: t.String({ minLength: 1 }),
                     titulo: t.Optional(t.String({ minLength: 1 })),
                     directorio: t.Optional(t.String({ minLength: 1 })),
+                    url: t.Optional(t.String({ minLength: 1 })),
                 }),
             }),
             usuario: true,
@@ -148,7 +150,7 @@ export const app = new Elysia({ prefix: "/api" })
     .post(
         "/planes/:id/acciones",
         async ({ params, body, usuario, status }) => {
-            const r = await crearAccion(usuario.id, params.id, body.tipo);
+            const r = await crearAccion(usuario.id, params.id, body.tipo, body.comentarios);
             if (r === "no_encontrado") return status(404, "Plan no encontrado");
             if (r === "no_es_tu_turno")
                 return status(409, "El plan no está en tu turno");
@@ -160,6 +162,11 @@ export const app = new Elysia({ prefix: "/api" })
             params: t.Object({ id: t.String({ format: "uuid" }) }),
             body: t.Object({
                 tipo: t.Union([t.Literal("refine"), t.Literal("implement")]),
+                comentarios: t.Optional(t.Array(t.Object({
+                    bloqueId: t.Union([t.String({ minLength: 1 }), t.Null()]),
+                    fragmento: t.Union([t.String(), t.Null()]),
+                    texto: t.String({ minLength: 1 }),
+                }))),
             }),
             usuario: true,
         },
@@ -186,6 +193,29 @@ export const app = new Elysia({ prefix: "/api" })
                 harness: t.String({ minLength: 1 }),
                 id: t.String({ minLength: 1 }),
                 wait: t.Optional(t.Integer({ minimum: 0, maximum: 55 })),
+            }),
+            usuario: true,
+        },
+    )
+    // Agente/bridge: no pudo tomar la acción (agente ocupado). Vuelve el turno al usuario.
+    .post(
+        "/planes/:id/acciones/rebotar",
+        async ({ params, body, usuario, status }) => {
+            const r = await rebotarAccion(usuario.id, params.id, body.sesion);
+            if (r === "no_encontrado") return status(404, "Plan no encontrado");
+            if (r === "otra_sesion")
+                return status(403, "El plan pertenece a otra sesión");
+            if (r === "sin_accion")
+                return status(409, "No hay ninguna acción para rebotar");
+            return status(204);
+        },
+        {
+            params: t.Object({ id: t.String({ format: "uuid" }) }),
+            body: t.Object({
+                sesion: t.Object({
+                    harness: t.String({ minLength: 1 }),
+                    id: t.String({ minLength: 1 }),
+                }),
             }),
             usuario: true,
         },
