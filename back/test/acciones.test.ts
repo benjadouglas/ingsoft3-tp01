@@ -435,7 +435,7 @@ describe("pertenencia a la sesión", () => {
         ).toBe(2);
     });
 
-    // Las dos variantes del script solo difieren en los defaults de URL, que acá se pisan por env.
+    // La skill delega al cliente Node; las URLs acá se configuran por entorno.
     test("el script separa publish y wait por sesión dentro del mismo repo", async () => {
         const dir = await mkdtemp(join(tmpdir(), "borrador-session-"));
         const server = Bun.serve({
@@ -444,25 +444,24 @@ describe("pertenencia a la sesión", () => {
         });
         const script = resolve(
             import.meta.dir,
-            "../../skill/handoff-html-local/scripts/borrador.sh",
+            "../../skill/handoff-html/scripts/borrador",
         );
         const html = join(dir, "plan.html");
         await Bun.write(html, "<title>Mismo tema</title>v1");
+        const claude = { harness: "claude-code", id: "sesion-claude" };
         const env = {
             ...process.env,
             BORRADOR_URL: server.url.origin,
             BORRADOR_APP_URL: server.url.origin,
             BORRADOR_TOKEN: clave,
+            BORRADOR_HARNESS: "claude",
             XDG_STATE_HOME: join(dir, "state"),
-            CODEX_HOME: dir,
             CLAUDE_CONFIG_DIR: dir,
-            CODEX_THREAD_ID: "",
             CLAUDE_CODE_SESSION_ID: "",
-            OPENCODE_SESSION_ID: "",
         };
         async function run(
             command: "publish" | "wait",
-            identity?: typeof sesion,
+            identity?: { harness: string; id: string },
             detected = false,
         ) {
             const proc = Bun.spawn(
@@ -484,7 +483,9 @@ describe("pertenencia a la sesión", () => {
                     cwd: dir,
                     env: {
                         ...env,
-                        ...(detected ? { CODEX_THREAD_ID: identity?.id } : {}),
+                        ...(detected
+                            ? { CLAUDE_CODE_SESSION_ID: identity?.id }
+                            : {}),
                     },
                     stdout: "pipe",
                     stderr: "pipe",
@@ -500,23 +501,22 @@ describe("pertenencia a la sesión", () => {
         try {
             expect((await run("publish")).exitCode).toBe(1);
             const identities = [
-                sesion,
-                { harness: "codex", id: "otra" },
-                { harness: "claude-code", id: sesion.id },
+                claude,
+                { harness: "claude-code", id: "otra" },
             ];
             const ids: string[] = [];
             for (const identity of identities) {
                 const result = await run(
                     "publish",
                     identity,
-                    identity === sesion,
+                    identity === claude,
                 );
                 expect(result.exitCode, result.stderr).toBe(0);
                 const published = JSON.parse(result.stdout);
                 expect(published.version).toBe(1);
                 ids.push(published.url.split("/").at(-1));
             }
-            expect(new Set(ids).size).toBe(3);
+            expect(new Set(ids).size).toBe(2);
             const [id] = ids;
             await api("POST", `/planes/${id}/comentarios`, {
                 texto: "solo para la primera sesión",
@@ -525,7 +525,7 @@ describe("pertenencia a la sesión", () => {
             await api("POST", `/planes/${ids[1]}/acciones`, {
                 tipo: "implement",
             });
-            const waited = await run("wait", sesion, true);
+            const waited = await run("wait", claude, true);
             expect(waited.exitCode, waited.stderr).toBe(0);
             expect(JSON.parse(waited.stdout).comentarios[0].texto).toBe(
                 "solo para la primera sesión",
@@ -534,7 +534,7 @@ describe("pertenencia a la sesión", () => {
             expect(otherWait.exitCode, otherWait.stderr).toBe(0);
             expect(JSON.parse(otherWait.stdout).tipo).toBe("implement");
             await Bun.write(html, "<title>Mismo tema</title>v2");
-            const revised = await run("publish", sesion);
+            const revised = await run("publish", claude);
             expect(revised.exitCode, revised.stderr).toBe(0);
             expect(JSON.parse(revised.stdout)).toMatchObject({
                 version: 2,
@@ -546,6 +546,135 @@ describe("pertenencia a la sesión", () => {
             expect(JSON.parse(fresh.stdout).url).not.toEndWith(ids[1]!);
         } finally {
             server.stop(true);
+            await rm(dir, { recursive: true, force: true });
+        }
+    }, 15000);
+
+    // En T3 Code el script resuelve el thread por la API de T3 y deja `sesion.json` para el bridge.
+    test("en T3 Code publish resuelve el thread activo del repo y guarda sesion.json", async () => {
+        const dir = await mkdtemp(join(tmpdir(), "borrador-t3-"));
+        const server = Bun.serve({
+            port: 0,
+            fetch: (request) => app.handle(request),
+        });
+        const proyectoT3 = crypto.randomUUID();
+        const threads = [
+            { id: "t-activo", title: "Plan del repo", proj: proyectoT3, activo: true },
+            { id: "t-quieto", title: "Otro", proj: proyectoT3, activo: false },
+            { id: "t-ajeno", title: "Ajeno", proj: "otro-proyecto", activo: true },
+        ];
+        const t3 = Bun.serve({
+            port: 0,
+            fetch: (request) => {
+                const { pathname } = new URL(request.url);
+                if (pathname === "/.well-known/t3/environment")
+                    return Response.json({ environmentId: "env-1" });
+                if (request.headers.get("authorization") !== "Bearer t3-token")
+                    return new Response("no", { status: 401 });
+                if (pathname === "/api/orchestration/shell")
+                    return Response.json({
+                        // Como lo guarda T3: con `~` y otra capitalización.
+                        projects: [
+                            {
+                                id: proyectoT3,
+                                workspaceRoot: dir.replace(
+                                    process.env.HOME!,
+                                    "~",
+                                ).toUpperCase().replace("~", "~"),
+                            },
+                            { id: "otro-proyecto", workspaceRoot: "/otro" },
+                        ],
+                        threads: threads.map((t) => ({
+                            id: t.id,
+                            title: t.title,
+                            projectId: t.proj,
+                            archivedAt: null,
+                            session: { activeTurnId: t.activo ? "turno" : null },
+                        })),
+                    });
+                return new Response("?", { status: 404 });
+            },
+        });
+        const script = resolve(
+            import.meta.dir,
+            "../../skill/handoff-html/scripts/borrador",
+        );
+        const html = join(dir, "plan.html");
+        await Bun.write(html, "<title>Desde T3</title>v1");
+        const credencial = join(dir, "t3code.json");
+        await Bun.write(
+            credencial,
+            JSON.stringify({ baseUrl: t3.url.origin, accessToken: "t3-token" }),
+        );
+        const stateHome = join(dir, "state");
+        async function publish(...flags: string[]) {
+            const proc = Bun.spawn(
+                ["bash", script, "publish", ...flags, html],
+                {
+                    cwd: dir,
+                    env: {
+                        ...process.env,
+                        BORRADOR_URL: server.url.origin,
+                        BORRADOR_APP_URL: server.url.origin,
+                        BORRADOR_TOKEN: clave,
+                        BORRADOR_HARNESS: "t3code",
+                        T3CODE_CREDENTIAL_FILE: credencial,
+                        XDG_STATE_HOME: stateHome,
+                    },
+                    stdout: "pipe",
+                    stderr: "pipe",
+                },
+            );
+            const [stdout, stderr, exitCode] = await Promise.all([
+                new Response(proc.stdout).text(),
+                new Response(proc.stderr).text(),
+                proc.exited,
+            ]);
+            return { stdout, stderr, exitCode };
+        }
+        try {
+            const r = await publish();
+            expect(r.exitCode, r.stderr).toBe(0);
+            // Sin bridge corriendo, avisa pero publica igual.
+            expect(r.stderr).toContain("bridge");
+            const { url } = JSON.parse(r.stdout);
+            const id = url.split("/").at(-1);
+            const plan = (await api("GET", "/planes")).json.find(
+                (p: any) => p.id === id,
+            );
+            expect(plan).toMatchObject({
+                harness: "t3code",
+                sesionId: "t-activo",
+                sesionTitulo: "Plan del repo",
+                sesionUrl: `${t3.url.origin}/env-1/t-activo`,
+            });
+            const sesiones = Array.from(
+                new Bun.Glob("borrador/sessions/*/sesion.json").scanSync(
+                    stateHome,
+                ),
+            );
+            expect(sesiones).toHaveLength(1);
+            const sesionJson = await Bun.file(
+                join(stateHome, sesiones[0]!),
+            ).json();
+            expect(sesionJson).toMatchObject({
+                baseUrl: server.url.origin,
+                harness: "t3code",
+                sessionId: "t-activo",
+                planId: id,
+                estado: "vigilando",
+            });
+            // Con dos threads activos en el repo hay que elegir.
+            threads[1]!.activo = true;
+            const ambiguo = await publish();
+            expect(ambiguo.exitCode).toBe(1);
+            expect(ambiguo.stderr).toContain("varios threads");
+            const explicito = await publish("--session-id", "t-quieto");
+            expect(explicito.exitCode, explicito.stderr).toBe(0);
+            expect(JSON.parse(explicito.stdout).version).toBe(1);
+        } finally {
+            server.stop(true);
+            t3.stop(true);
             await rm(dir, { recursive: true, force: true });
         }
     }, 15000);
@@ -576,6 +705,11 @@ describe("eventos", () => {
         const chunk = String(value);
         expect(chunk).toContain("event: version_nueva");
         expect(chunk).toContain(id);
+        await api("POST", `/planes/${id}/acciones`, { tipo: "implement" });
+        await api("POST", `/planes/${id}/acciones/rebotar`, { sesion });
+        expect(String((await lector.read()).value)).toContain(
+            "event: accion_rebotada",
+        );
         ctrl.abort();
     });
 });
