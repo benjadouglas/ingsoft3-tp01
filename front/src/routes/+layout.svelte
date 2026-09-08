@@ -1,6 +1,6 @@
 <script lang="ts">
     import "./layout.css";
-    import favicon from "$lib/assets/favicon.svg";
+    import logo from "$lib/assets/htmlplan-logo.png";
     import { page } from "$app/state";
     import { goto } from "$app/navigation";
     import { signOut } from "$lib/auth-client";
@@ -16,7 +16,10 @@
     }
 </script>
 
-<svelte:head><link rel="icon" href={favicon} /></svelte:head>
+<svelte:head>
+    <link rel="icon" type="image/png" href={logo} />
+    <title>htmlplan</title>
+</svelte:head>
 
 {#if data.usuario && !page.url.pathname.startsWith("/planes/")}
     <div class="flex min-h-dvh flex-col">
@@ -24,9 +27,11 @@
             <div class="mx-auto flex h-12 max-w-3xl items-center gap-6 px-4">
                 <a
                     href="/"
-                    class="font-mono text-sm font-semibold tracking-tight"
-                    >htmlplan</a
+                    aria-label="htmlplan"
+                    class="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
+                    <img src={logo} alt="" class="h-7 w-auto" />
+                </a>
                 <div class="ml-auto flex items-center gap-3">
                     <span class="hidden text-xs text-muted-foreground sm:inline"
                         >{data.usuario.email}</span
