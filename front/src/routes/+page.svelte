@@ -13,7 +13,7 @@
             href="/planes"
             class="group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
-            <Card.Root class="h-full transition-colors group-hover:bg-muted/40">
+            <Card.Root class="h-full transition-colors group-hover:bg-muted">
                 <Card.Header>
                     <HugeiconsIcon
                         icon={File01Icon}
@@ -30,7 +30,7 @@
             href="/token"
             class="group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
-            <Card.Root class="h-full transition-colors group-hover:bg-muted/40">
+            <Card.Root class="h-full transition-colors group-hover:bg-muted">
                 <Card.Header>
                     <HugeiconsIcon
                         icon={Key01Icon}
