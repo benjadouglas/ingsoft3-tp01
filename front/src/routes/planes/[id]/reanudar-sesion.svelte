@@ -1,49 +1,50 @@
 <script lang="ts">
     // Cómo volver a la conversación del agente que publicó el plan.
-    // Claude Code y Codex: el script guardó id, título y directorio, así que damos el comando
-    // exacto (CLI) o qué buscar en el historial (GUI). El resto: un prompt para pegarle a un
-    // agente en la conversación original, que retoma por el estado de esa sesión.
+    // T3 Code: el script guardó el link al thread, así que se abre directo.
+    // Claude Code: guardó id, título y directorio, así que damos el comando exacto (CLI)
+    // o qué buscar en el historial (GUI). El resto: un prompt para pegarle a un agente
+    // en la conversación original, que retoma por el estado de esa sesión.
     import { Button } from "$lib/components/ui/button";
     import { HugeiconsIcon } from "@hugeicons/svelte";
     import {
         ComputerTerminal01Icon,
         Copy01Icon,
+        LinkSquare02Icon,
         Tick02Icon,
     } from "@hugeicons/core-free-icons";
     import claudeCode from "$lib/assets/harness/claude-code.svg";
-    import codex from "$lib/assets/harness/codex.png";
-    import cursor from "$lib/assets/harness/cursor.svg";
-    import opencode from "$lib/assets/harness/opencode.svg";
+    import t3code from "$lib/assets/harness/t3code.svg";
 
     let {
         harness,
         sesionId,
         sesionTitulo,
         sesionDirectorio,
+        sesionUrl,
         planTitulo,
     }: {
         harness: string;
         sesionId: string | null;
         sesionTitulo: string | null;
         sesionDirectorio: string | null;
+        sesionUrl: string | null;
         planTitulo: string;
     } = $props();
 
     const iconos: Record<string, [nombre: string, icono: string]> = {
         "claude-code": ["Claude Code", claudeCode],
-        codex: ["Codex", codex],
-        cursor: ["Cursor", cursor],
-        opencode: ["OpenCode", opencode],
+        t3code: ["T3 Code", t3code],
     };
     // Harness cuya sesión el script sabe leer del disco: con id se reabre por comando.
     const resume: Record<string, (id: string) => string> = {
         "claude-code": (id) => `claude --resume ${id}`,
-        codex: (id) => `codex resume ${id}`,
     };
 
     const nombre = $derived(iconos[harness]?.[0] ?? harness);
     const icono = $derived(iconos[harness]?.[1]);
     const reabrible = $derived(harness in resume);
+    // Con link directo (T3 Code) no hay nada que copiar: se abre el thread.
+    const enlazable = $derived(sesionUrl !== null);
 
     const modos = [
         ["cli", "CLI"],
@@ -52,7 +53,7 @@
     let modo = $state<(typeof modos)[number][0]>("cli");
 
     const comando = $derived.by(() => {
-        if (!sesionId) return null;
+        if (!sesionId || !reabrible) return null;
         const cmd = resume[harness]!(sesionId);
         return sesionDirectorio ? `cd ${sesionDirectorio} && ${cmd}` : cmd;
     });
@@ -64,11 +65,14 @@
     );
 
     const texto = $derived.by(() => {
+        if (enlazable) return busqueda;
         if (!reabrible) return prompt;
         if (modo === "gui") return busqueda;
         return comando ?? busqueda;
     });
     const nota = $derived.by(() => {
+        if (enlazable)
+            return `Si el thread no responde, escribile que ya comentaste en Borrador.`;
         if (!reabrible) return `Pegale esto a ${nombre} en la conversación original.`;
         if (modo === "gui")
             return `Buscá esta conversación en el historial de ${nombre}.`;
@@ -112,9 +116,22 @@
             </div>
         {/if}
         <span class="flex-1"></span>
-        <Button variant="ghost" size="icon-sm" onclick={copiar} aria-label="Copiar">
-            <HugeiconsIcon icon={copiado ? Tick02Icon : Copy01Icon} />
-        </Button>
+        {#if enlazable}
+            <Button
+                variant="default"
+                size="sm"
+                href={sesionUrl}
+                target="_blank"
+                rel="noopener"
+            >
+                <HugeiconsIcon icon={LinkSquare02Icon} data-icon="inline-start" />
+                Abrir en {nombre}
+            </Button>
+        {:else}
+            <Button variant="ghost" size="icon-sm" onclick={copiar} aria-label="Copiar">
+                <HugeiconsIcon icon={copiado ? Tick02Icon : Copy01Icon} />
+            </Button>
+        {/if}
     </div>
     <div class="px-3 py-2">
         <code class="block break-all font-mono text-xs">{texto}</code>

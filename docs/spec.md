@@ -154,9 +154,10 @@ Comentarios (solo dueño, solo en `user_turn`):
 - `PUT /comentarios/{id} { texto }`, `DELETE /comentarios/{id}`
 
 Acciones:
-- `POST /planes/{id}/acciones { tipo }` → 201, o 409 si hay una pendiente o no es `user_turn`.
+- `POST /planes/{id}/acciones { tipo, comentarios? }` → 201, o 409 si hay una pendiente o no es `user_turn`. Si se envía `comentarios: [{ bloqueId: string | null, fragmento: string | null, texto }]`, reemplaza los de la versión actual en la misma transacción que crea la acción; una lista vacía los borra. El visor recupera los comentarios sin atender al volver al turno del usuario.
 - `GET /planes/{id}/acciones` — historial.
-- `GET /planes/{id}/acciones/siguiente?wait=25&harness=codex&id=<sesion>` → long-poll (agente). `wait` default 25 s, máximo 55 s. 200 con `{ accionId, tipo, plan: { id, titulo, version }, comentarios: [{ id, bloqueId?, fragmento?, texto }], contenidoUrl }`, o 204 al vencer. Mientras la request está abierta, el servidor registra en memoria que hay un agente escuchando ese plan.
+- `GET /planes/{id}/acciones/siguiente?wait=25&harness=claude-code&id=<sesion>` → long-poll (agente). `wait` default 25 s, máximo 55 s. 200 con `{ accionId, tipo, plan: { id, titulo, version }, comentarios: [{ id, bloqueId?, fragmento?, texto }], contenidoUrl }`, o 204 al vencer. Mientras la request está abierta, el servidor registra en memoria que hay un agente escuchando ese plan.
+- `POST /planes/{id}/acciones/rebotar { sesion: { harness, id } }` → 204 (agente o bridge). El agente estaba ocupado y no pudo tomar la acción: se borra, el plan vuelve a `user_turn` con los comentarios sin atender y el visor recibe `accion_rebotada` por SSE para que el usuario la vuelva a enviar. 409 si no hay acción, 403 si la sesión no es la del plan.
 - `POST /acciones/{id}/resolver { contenidoHtml? }` → 200 `{ version }` (agente).
 
 Cuenta:

@@ -16,6 +16,7 @@ export type Sesion = {
     id: string;
     titulo?: string;
     directorio?: string;
+    url?: string;
 };
 
 /** Crea un plan nuevo con su versión 1 en `user_turn`, creando el proyecto por nombre si no existe. */
@@ -41,6 +42,7 @@ export async function publicarPlan(
                 sessionId: input.sesion.id,
                 sessionTitle: input.sesion.titulo,
                 sessionDir: input.sesion.directorio,
+                sessionUrl: input.sesion.url,
             })
             .returning({ id: plan.id });
         await tx.insert(version).values({
@@ -85,6 +87,7 @@ export async function listarPlanes(userId: string) {
             sesionId: plan.sessionId,
             sesionTitulo: plan.sessionTitle,
             sesionDirectorio: plan.sessionDir,
+            sesionUrl: plan.sessionUrl,
         })
         .from(plan)
         .innerJoin(project, eq(plan.projectId, project.id))
