@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { prepararPlan } from "./plan-html";
 
 const html = `<!doctype html><html><head><style>
@@ -8,22 +8,22 @@ const html = `<!doctype html><html><head><style>
 </style></head><body><p class="eyebrow">hola</p></body></html>`;
 
 describe("prepararPlan", () => {
-    it("acota :root, html y body al contenedor .plan", () => {
-        const { estilos, cuerpo } = prepararPlan(html);
-        const style = document.createElement("style");
-        style.textContent = estilos;
-        const plan = document.createElement("div");
-        plan.className = "plan";
-        plan.innerHTML = cuerpo;
-        document.head.append(style);
-        document.body.append(plan);
+  it("acota :root, html y body al contenedor .plan", () => {
+    const { estilos, cuerpo } = prepararPlan(html);
+    const style = document.createElement("style");
+    style.textContent = estilos;
+    const plan = document.createElement("div");
+    plan.className = "plan";
+    plan.innerHTML = cuerpo;
+    document.head.append(style);
+    document.body.append(plan);
 
-        expect(estilos).not.toContain(":root");
-        expect(getComputedStyle(plan).backgroundColor).toBe("rgb(247, 247, 244)");
-        expect(getComputedStyle(plan.querySelector(".eyebrow")!).color).toBe("rgb(245, 78, 0)");
-        expect(getComputedStyle(document.documentElement).getPropertyValue("--canvas")).toBe("");
+    expect(estilos).not.toContain(":root");
+    expect(getComputedStyle(plan).backgroundColor).toBe("rgb(247, 247, 244)");
+    expect(getComputedStyle(plan.querySelector(".eyebrow")!).color).toBe("rgb(245, 78, 0)");
+    expect(getComputedStyle(document.documentElement).getPropertyValue("--canvas")).toBe("");
 
-        style.remove();
-        plan.remove();
-    });
+    style.remove();
+    plan.remove();
+  });
 });

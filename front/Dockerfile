@@ -1,15 +1,15 @@
 
 # Construir
 
-FROM oven/bun:1.3-alpine AS build
+FROM ghcr.io/voidzero-dev/vite-plus:0.3.0 AS build
 
 WORKDIR /app
 
-COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+COPY --chown=vp:vp package.json bun.lock .node-version ./
+RUN vp install --frozen-lockfile
 
-COPY . .
-RUN bun run build
+COPY --chown=vp:vp . .
+RUN vp build
 
 # Ejecutar
 
