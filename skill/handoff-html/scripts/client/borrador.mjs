@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile, readdir, copyFile, mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { configure, loadConfig } from './config.mjs';
 import { request, checked } from './api.mjs';
@@ -36,13 +37,15 @@ async function identity(repo, flags) {
     return session;
 }
 
-async function warnBridge() {
+export async function warnBridge(dir) {
     const text = await readOptional(join(stateHome(), 'bridge/estado.json'));
     let state;
     try { state = JSON.parse(text); } catch { /* Estado incompleto de una instalación anterior. */ }
     if (!state || Date.now() - Date.parse(state.actualizadoEn) > 180_000) {
         console.error('borrador: aviso: el bridge no está corriendo o no da señales; el plan quedó publicado. Corré borrador bridge status.');
-    } else if (state.error) console.error(`borrador: aviso del bridge: ${state.error}`);
+    } else if (state.error) console.error(`borrador: aviso: ${state.errorScope === 'bridge' ? state.error : 'el estado del bridge es de una versión anterior; corré borrador bridge install y borrador bridge status'}`);
+    const session = await readSession(dir);
+    if (session?.estado === 'fallido') console.error(`borrador: aviso: el plan ${session.planId} falló: ${session.error}. Corregí la causa y corré borrador bridge retry ${session.planId}`);
 }
 
 async function main([command, ...args]) {
@@ -93,7 +96,7 @@ async function main([command, ...args]) {
         const htmlCopy = join(dir, 'plan.html');
         if (resolve(args[0]) !== htmlCopy) await copyFile(resolve(args[0]), htmlCopy);
         await writeSession(dir, { ...session, baseUrl: config.baseUrl, appUrl: config.appUrl, repo, planId: id, htmlCopy, approved: false, publicationId: randomUUID(), estado: session.harness === 't3code' ? 'vigilando' : 'publicado' });
-        if (session.harness === 't3code') await warnBridge();
+        if (session.harness === 't3code') await warnBridge(dir);
         console.log(JSON.stringify({ url: `${config.appUrl}/planes/${id}`, version: result.version }));
         return;
     }
@@ -113,4 +116,5 @@ async function main([command, ...args]) {
     }
 }
 
-main(process.argv.slice(2)).catch(error => { console.error(`borrador: ${error.message}`); process.exitCode = 1; });
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href)
+    main(process.argv.slice(2)).catch(error => { console.error(`borrador: ${error.message}`); process.exitCode = 1; });

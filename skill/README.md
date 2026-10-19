@@ -19,13 +19,13 @@ borrador config --url http://localhost:3000 --app-url http://localhost:5173
 
 Para producción, configurá las URLs de ese servidor. Si API y visor comparten origen, alcanza con `--url` en una configuración nueva. El token puede configurarse con `borrador config --token <token>`, `BORRADOR_TOKEN` o el archivo anterior `~/.config/borrador/token`.
 
-`config` guarda `~/.config/borrador/config.json` con permisos 0600 (respeta `XDG_CONFIG_HOME`). Las variables `BORRADOR_URL`, `BORRADOR_APP_URL` y `BORRADOR_TOKEN` tienen prioridad; permiten alternar entornos sin cambiar la configuración guardada. El archivo anterior `~/.config/borrador/url` sigue siendo válido. Configurar no publica planes ni imprime credenciales.
+`config` guarda `~/.config/borrador/config.json` con permisos 0600 (respeta `XDG_CONFIG_HOME`). Las variables `BORRADOR_URL`, `BORRADOR_APP_URL` y `BORRADOR_TOKEN` tienen prioridad; permiten alternar entornos sin cambiar la configuración guardada. El archivo anterior `~/.config/borrador/url` sigue siendo válido. Configurar no publica planes ni imprime credenciales. Al guardar un token se elimina el archivo legacy `token`; `config` avisa si una variable de entorno sigue sobrescribiendo la credencial guardada.
 
 ## Cliente
 
 - `borrador publish <html>` publica o versiona el plan de esta conversación.
 - `borrador wait` espera la acción en Claude Code.
-- `borrador bridge pair|install|uninstall|run|status` administra la integración de T3.
+- `borrador bridge pair|install|uninstall|run|status|retry` administra la integración de T3.
 
 El cliente detecta T3 por el entorno (`BORRADOR_HARNESS=t3code|claude` fuerza la elección). Toda comunicación con T3 pasa por `bridge/t3code.mjs`, incluyendo credenciales, resolución del thread, enlace y envío de mensajes. Si hay varios threads activos en el repo, `publish --session-id <id> <html>` permite elegir.
 
@@ -44,7 +44,7 @@ node skill/handoff-html/scripts/bridge/bridge.mjs status                        
 node skill/handoff-html/scripts/bridge/bridge.mjs run                               # primer plano (lo que lanza launchd)
 ```
 
-Si instalaste el bridge antes de mover los scripts, volvé a correr `borrador bridge install` para actualizar la ruta del LaunchAgent. No hace falta repetir el pairing.
+Si instalaste el bridge antes de mover los scripts, volvé a correr `borrador bridge install` para actualizar la ruta del LaunchAgent. No hace falta repetir el pairing. El servicio no guarda `BORRADOR_TOKEN` en el LaunchAgent: lee la credencial del archivo en cada consulta. Si una instalación anterior guardaba esa variable, `install` la retira. Guardá primero el token con `borrador config --token <token>`.
 
 El link de pairing es de un solo uso y dura ~5 minutos: pegárselo a `pair` sin abrirlo antes en el browser. Scopes: `orchestration:read orchestration:operate`.
 
@@ -52,7 +52,9 @@ Ciclo: cada 5 s escanea los `sesion.json` en `vigilando` y arranca un long-poll 
 
 - Si el thread de T3 está **ocupado** (turno activo, aprobación o input pendiente): `POST /api/planes/{id}/acciones/rebotar`. Borrador borra la acción, vuelve el plan a `user_turn` con los comentarios sin atender y avisa por SSE `accion_rebotada`; el visor muestra que el agente estaba ocupado y el usuario vuelve a enviar cuando termine. El bridge sigue vigilando.
 - Si está libre: manda al thread un mensaje `thread.turn.start` con una línea que referencia la skill y el mismo JSON que imprime `borrador wait` (`tipo`, `comentarios`, `archivo`). Marca `sesion.json` como `entregado`; el próximo `publish` del agente lo vuelve a `vigilando`. Con `implement` además guarda `approved: true` en `sesion.json`, igual que hace `wait`.
-- Si T3 no responde o rechaza el mensaje, reintenta hasta una hora (Borrador re-entrega la acción en cada poll) y después marca `fallido` en la sesión y lo muestra en `bridge/estado.json`, que `publish` lee para avisarle al agente. Credencial vencida, thread archivado o borrado: `fallido` con el motivo.
+- Si T3 no responde o rechaza el mensaje, reintenta hasta una hora (Borrador re-entrega la acción en cada poll) y después marca `fallido` en la sesión y lo muestra por plan en `bridge status`. `bridge/estado.json` contiene únicamente errores globales del bridge, sin mezclar fallos de otros planes. Credencial vencida, thread archivado o borrado: `fallido` con el motivo.
+
+Después de corregir la causa de un plan fallido, corré `borrador bridge retry <plan-id>`: vuelve a vigilarlo sin publicar otra versión ni borrar la acción pendiente. No toca otros planes ni permite reintentar uno entregado. Reiniciar el proceso no reactiva sesiones fallidas.
 
 ## Tests
 

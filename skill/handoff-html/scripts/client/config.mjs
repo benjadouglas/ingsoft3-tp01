@@ -1,17 +1,17 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readOptional, writeJson } from './state.mjs';
 
 const configDir = () => join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'borrador');
-export async function loadConfig() {
+export async function loadConfig({ envToken = true } = {}) {
     const json = await readOptional(join(configDir(), 'config.json'));
     const saved = json ? JSON.parse(json) : {};
     const baseUrl = process.env.BORRADOR_URL || saved.url || (await readOptional(join(configDir(), 'url')))?.trim();
     return {
         baseUrl: baseUrl?.replace(/\/$/, ''),
         appUrl: (process.env.BORRADOR_APP_URL || saved.appUrl || baseUrl)?.replace(/\/$/, ''),
-        token: process.env.BORRADOR_TOKEN || saved.token || (await readOptional(join(configDir(), 'token')))?.trim(),
+        token: (envToken && process.env.BORRADOR_TOKEN) || saved.token || (await readOptional(join(configDir(), 'token')))?.trim(),
     };
 }
 export async function configure(args) {
@@ -26,5 +26,8 @@ export async function configure(args) {
     }
     await mkdir(configDir(), { recursive: true });
     await writeJson(path, saved);
+    if (saved.token) await rm(join(configDir(), 'token'), { force: true });
+    if (process.env.BORRADOR_TOKEN && process.env.BORRADOR_TOKEN !== saved.token)
+        console.error('borrador: aviso: BORRADOR_TOKEN tiene prioridad sobre el token guardado; quitá esa variable para usar config.json');
     console.log(JSON.stringify({ configured: true, file: path }));
 }

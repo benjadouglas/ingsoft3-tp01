@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Un long-poll por sesión T3; launchd mantiene el proceso vivo entre turnos.
 import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -123,10 +124,10 @@ export async function run({ signal } = {}) {
     await mkdir(bridgeDir(), { recursive: true });
     try {
         while (!signal?.aborted) {
-            const planes = await escanear({ signal });
-            let error = planes.find(sesion => sesion.estado === 'fallido')?.error;
+            await escanear({ signal });
+            let error;
             try { await t3.loadCredential(); } catch (e) { error = e.message; }
-            await writeJson(estadoFile(), { pid: process.pid, actualizadoEn: new Date().toISOString(), vigilando: vigilados.size, error });
+            await writeJson(estadoFile(), { pid: process.pid, actualizadoEn: new Date().toISOString(), vigilando: vigilados.size, errorScope: 'bridge', error });
             await sleep(config.scanMs, undefined, { signal });
         }
     } catch (error) {
@@ -140,9 +141,9 @@ export async function run({ signal } = {}) {
 const LABEL = "com.borrador.bridge";
 const plistPath = () => join(homedir(), "Library", "LaunchAgents", `${LABEL}.plist`);
 
-function plist(nodePath, scriptPath) {
+export function plist(nodePath, scriptPath) {
     const logDir = bridgeDir();
-    const env = ['PATH', 'XDG_CONFIG_HOME', 'XDG_STATE_HOME', 'BORRADOR_TOKEN', 'T3CODE_CREDENTIAL_FILE']
+    const env = ['PATH', 'XDG_CONFIG_HOME', 'XDG_STATE_HOME', 'T3CODE_CREDENTIAL_FILE']
         .filter(key => process.env[key])
         .map(key => `    <key>${key}</key><string>${escapeXml(process.env[key])}</string>`)
         .join('\n');
@@ -177,6 +178,7 @@ function escapeXml(s) {
 
 async function install() {
     if (process.platform !== "darwin") throw new Error("`install` solo sabe de launchd (macOS). En otro sistema corré `bridge run` con tu supervisor.");
+    if (!(await loadConfig({ envToken: false })).token) throw new Error('Guardá el token con borrador config --token <token> antes de instalar el bridge');
     await mkdir(bridgeDir(), { recursive: true });
     await mkdir(dirname(plistPath()), { recursive: true });
     const script = fileURLToPath(import.meta.url);
@@ -199,8 +201,17 @@ async function status() {
     console.log(JSON.stringify({ bridge: { ...estado, vivo: edadSegundos < 180, edadSegundos }, planes }, null, 2));
 }
 
+export async function retry(planId) {
+    const matches = (await sesiones()).filter(s => s.planId === planId);
+    if (matches.length !== 1) throw new Error('El plan no existe en el estado local o tiene varias sesiones');
+    const sesion = matches[0];
+    if (sesion.estado !== 'fallido') throw new Error(`El plan está ${sesion.estado}; solo se reintentan planes fallidos`);
+    await escribirSesion(sesion.dir, sesion, { estado: 'vigilando', error: undefined, publicationId: randomUUID() });
+    return { planId, estado: 'vigilando' };
+}
+
 export async function cli([command, ...args]) {
-    if (args.length !== (command === 'pair' ? 1 : 0)) throw new Error('Argumentos inválidos para bridge');
+    if (args.length !== (['pair', 'retry'].includes(command) ? 1 : 0)) throw new Error('Argumentos inválidos para bridge');
     switch (command) {
         case 'run': {
             const ctrl = new AbortController();
@@ -211,8 +222,9 @@ export async function cli([command, ...args]) {
         case 'install': await install(); break;
         case 'uninstall': await uninstall(); break;
         case 'status': await status(); break;
+        case 'retry': console.log(JSON.stringify(await retry(args[0]))); break;
         case 'pair': console.log(JSON.stringify(await t3.pair(args[0]))); break;
-        default: throw new Error('Uso: bridge run | install | uninstall | status | pair <pairing-url>');
+        default: throw new Error('Uso: bridge run | install | uninstall | status | pair <pairing-url> | retry <plan-id>');
     }
 }
 
