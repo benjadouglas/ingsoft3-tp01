@@ -33,7 +33,13 @@ export default defineConfig({
   ]),
   test: {
     expect: { requireAssertions: true },
-    // Unit tests en node: sin browser ni DOM.
     include: ["src/**/*.test.ts"],
+    coverage: {
+        provider: "v8",
+        include: ["src/lib/**/*.ts", "src/routes/**/+page.ts"],
+        exclude: ["src/lib/components/ui/**", "**/*.test.ts"],
+        reporter: ["text", "json-summary", "html"],
+        thresholds: { lines: 50, branches: 50 }
+    }
   },
 });
