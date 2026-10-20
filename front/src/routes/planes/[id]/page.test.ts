@@ -84,4 +84,13 @@ describe("load de /planes/[id]", () => {
 
         await expect(cargar(fetch)).rejects.toMatchObject({ status: 404 });
     });
+
+    it("si fallan los comentarios, la página da error en vez de mostrarlos vacíos", async () => {
+        const fetch = fetchFalso({
+            "/api/planes/p1": "<p></p>",
+            "/api/planes": [plan],
+        });
+
+        await expect(cargar(fetch)).rejects.toMatchObject({ status: 404 });
+    });
 });
