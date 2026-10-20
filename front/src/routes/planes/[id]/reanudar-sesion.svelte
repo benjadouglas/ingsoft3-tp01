@@ -14,6 +14,7 @@
     } from "@hugeicons/core-free-icons";
     import claudeCode from "$lib/assets/harness/claude-code.svg";
     import t3code from "$lib/assets/harness/t3code.svg";
+    import { comandoReanudar, esReabrible } from "$lib/sesion";
 
     let {
         harness,
@@ -35,14 +36,10 @@
         "claude-code": ["Claude Code", claudeCode],
         t3code: ["T3 Code", t3code],
     };
-    // Harness cuya sesión el script sabe leer del disco: con id se reabre por comando.
-    const resume: Record<string, (id: string) => string> = {
-        "claude-code": (id) => `claude --resume ${id}`,
-    };
 
     const nombre = $derived(iconos[harness]?.[0] ?? harness);
     const icono = $derived(iconos[harness]?.[1]);
-    const reabrible = $derived(harness in resume);
+    const reabrible = $derived(esReabrible(harness));
     // Con link directo (T3 Code) no hay nada que copiar: se abre el thread.
     const enlazable = $derived(sesionUrl !== null);
 
@@ -52,11 +49,7 @@
     ] as const;
     let modo = $state<(typeof modos)[number][0]>("cli");
 
-    const comando = $derived.by(() => {
-        if (!sesionId || !reabrible) return null;
-        const cmd = resume[harness]!(sesionId);
-        return sesionDirectorio ? `cd ${sesionDirectorio} && ${cmd}` : cmd;
-    });
+    const comando = $derived(comandoReanudar(harness, sesionId, sesionDirectorio));
     const busqueda = $derived(sesionTitulo ?? planTitulo);
     const prompt = $derived(
         `Retomá la conversación en la que se creó el plan «${planTitulo}»` +
