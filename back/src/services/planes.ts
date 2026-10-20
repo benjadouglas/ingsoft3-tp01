@@ -2,14 +2,7 @@ import { and, desc, eq, max, sql } from "drizzle-orm";
 import { db } from "../db";
 import { action, plan, project, version } from "../db/schema";
 import { notificar } from "./eventos";
-
-/** Título del plan: el `<title>` del documento, o el primer `<h1>`, o un fallback. */
-export function tituloDe(html: string): string {
-    const t =
-        html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ??
-        html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1];
-    return t?.replace(/<[^>]+>/g, "").trim() || "Plan sin título";
-}
+import { tituloDe } from "./reglas";
 
 export type Sesion = {
     harness: string;
