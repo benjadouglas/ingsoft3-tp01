@@ -3,8 +3,14 @@ import { db } from "../db";
 import { action, comment, plan, project, version } from "../db/schema";
 import type { Sesion } from "./planes";
 import { notificar } from "./eventos";
-
-type Tipo = (typeof action.$inferSelect)["type"];
+import {
+    esMismaSesion,
+    esTurnoDe,
+    estadoTras,
+    hayQueEntregar,
+    type Estado,
+    type Tipo,
+} from "./reglas";
 
 /** Plan del usuario, o undefined si no existe o es ajeno (ambos son 404). */
 async function planDelUsuario(userId: string, planId: string) {
@@ -41,7 +47,7 @@ export async function comentar(
 ): Promise<{ id: string } | "no_encontrado" | "no_es_tu_turno"> {
     const p = await planDelUsuario(userId, planId);
     if (!p) return "no_encontrado";
-    if (p.estado !== "user_turn") return "no_es_tu_turno";
+    if (!esTurnoDe("usuario", p.estado)) return "no_es_tu_turno";
     const v = await versionActual(planId);
     const [creado] = await db
         .insert(comment)
@@ -107,7 +113,7 @@ export async function crearAccion(
 ): Promise<{ id: string } | "no_encontrado" | "no_es_tu_turno" | "pendiente"> {
     const p = await planDelUsuario(userId, planId);
     if (!p) return "no_encontrado";
-    if (p.estado !== "user_turn") return "no_es_tu_turno";
+    if (!esTurnoDe("usuario", p.estado)) return "no_es_tu_turno";
     const v = await versionActual(planId);
     try {
         const creada = await db.transaction(async (tx) => {
@@ -128,7 +134,7 @@ export async function crearAccion(
                 .returning({ id: action.id });
             await tx
                 .update(plan)
-                .set({ state: tipo === "refine" ? "agent_turn" : "approved" })
+                .set({ state: estadoTras(tipo) })
                 .where(eq(plan.id, planId));
             return a!;
         });
@@ -161,7 +167,7 @@ function comentariosDe(versionId: string) {
  */
 async function accionPendiente(
     userId: string,
-    p: { id: string; estado: string },
+    p: { id: string; estado: Estado },
 ): Promise<{
     tipo: Tipo;
     comentarios: Awaited<ReturnType<typeof comentariosDe>>;
@@ -178,9 +184,7 @@ async function accionPendiente(
         .where(eq(action.planId, p.id))
         .orderBy(desc(action.createdAt))
         .limit(1);
-    // Un plan aprobado sin pendiente vuelve a entregar su `implement`: si el agente
-    // murió justo después de recibirlo, al reconectar lo recupera.
-    if (!a || (a.consumida && p.estado !== "approved")) return null;
+    if (!a || !hayQueEntregar(a, p.estado)) return null;
     // Primera entrega: queda registrada y el visor se entera de que el agente ya la tiene.
     if (a.entregada === null) {
         await db
@@ -214,8 +218,7 @@ export async function siguienteAccion(
 ) {
     const p = await planDelUsuario(userId, planId);
     if (!p) return;
-    if (p.harness !== sesion.harness || p.sessionId !== sesion.id)
-        return "otra_sesion";
+    if (!esMismaSesion(p, sesion)) return "otra_sesion";
     const ahora = await accionPendiente(userId, p);
     if (ahora) return ahora;
     await esperarAccion(planId, waitMs);
@@ -234,8 +237,7 @@ export async function rebotarAccion(
 ): Promise<"ok" | "no_encontrado" | "otra_sesion" | "sin_accion"> {
     const p = await planDelUsuario(userId, planId);
     if (!p) return "no_encontrado";
-    if (p.harness !== sesion.harness || p.sessionId !== sesion.id)
-        return "otra_sesion";
+    if (!esMismaSesion(p, sesion)) return "otra_sesion";
     if (p.estado === "user_turn") return "sin_accion";
     const [a] = await db
         .select({ id: action.id, versionId: action.versionId })
@@ -273,9 +275,8 @@ export async function nuevaVersion(
 > {
     const p = await planDelUsuario(userId, planId);
     if (!p) return "no_encontrado";
-    if (p.harness !== sesion.harness || p.sessionId !== sesion.id)
-        return "otra_sesion";
-    if (p.estado !== "agent_turn") return "no_es_tu_turno";
+    if (!esMismaSesion(p, sesion)) return "otra_sesion";
+    if (!esTurnoDe("agente", p.estado)) return "no_es_tu_turno";
     const [a] = await db
         .select({ id: action.id, versionId: action.versionId })
         .from(action)

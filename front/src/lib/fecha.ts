@@ -8,9 +8,10 @@ const unidades: [Intl.RelativeTimeFormatUnit, number][] = [
     ["minute", 1000 * 60],
 ];
 
-/** "hace 3 horas", "ayer", "hace 2 meses". Menos de un minuto: "recién". */
+/** "hace 3 horas", "ayer", "hace 2 meses". Menos de un minuto: "recién". Fecha inválida: "". */
 export function haceCuanto(iso: string, ahora = Date.now()): string {
     const diff = new Date(iso).getTime() - ahora;
+    if (Number.isNaN(diff)) return "";
     for (const [unidad, ms] of unidades) {
         if (Math.abs(diff) >= ms)
             return rtf.format(Math.round(diff / ms), unidad);

@@ -1,6 +1,5 @@
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, lazyPlugins } from "vite-plus";
-import { playwright } from "vite-plus/test/browser-playwright";
 import adapter from "@sveltejs/adapter-static";
 import { sveltekit } from "@sveltejs/kit/vite";
 
@@ -34,20 +33,13 @@ export default defineConfig({
   ]),
   test: {
     expect: { requireAssertions: true },
-    projects: [
-      {
-        extends: "./vite.config.ts",
-        test: {
-          name: "client",
-          browser: {
-            enabled: true,
-            provider: playwright(),
-            instances: [{ browser: "chromium", headless: true }],
-          },
-          include: ["src/**/*.svelte.{test,spec}.{js,ts}"],
-          exclude: ["src/lib/server/**"],
-        },
-      },
-    ],
+    include: ["src/**/*.test.ts"],
+    coverage: {
+        provider: "v8",
+        include: ["src/lib/**/*.ts", "src/routes/**/+page.ts"],
+        exclude: ["src/lib/components/ui/**", "**/*.test.ts"],
+        reporter: ["text", "json-summary", "html"],
+        thresholds: { lines: 50, branches: 50 }
+    }
   },
 });
