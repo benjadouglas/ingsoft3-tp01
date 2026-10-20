@@ -6,6 +6,7 @@
     import { Toaster } from "$lib/components/ui/sonner";
     import { toast } from "svelte-sonner";
     import { fragmentoDe } from "$lib/plan-html";
+    import { faseDe } from "$lib/fase";
     import ComentarioToast from "./comentario-toast.svelte";
     import ReanudarSesion from "./reanudar-sesion.svelte";
     import LoadingState from "$lib/components/loading-state.svelte";
@@ -70,15 +71,7 @@
     const esMiTurno = $derived(estado === "user_turn");
     // Fase del turno del agente, para el pie: enviado → recibido → (versión nueva) mi turno,
     // o aprobado si se cerró con Implementar.
-    const fase = $derived(
-        estado === "approved"
-            ? "aprobado"
-            : estado === "agent_turn"
-              ? entregado
-                  ? "recibido"
-                  : "enviado"
-              : "mi_turno",
-    );
+    const fase = $derived(faseDe(estado, entregado));
 
     // Cada pendiente es un toast fijo (duration infinita) con el mismo id:
     // volver a llamar a toast.custom con ese id lo actualiza en lugar de duplicarlo.
