@@ -140,3 +140,38 @@ jobs:
             sleep 20
           done
           echo "QA no respondió a tiempo"; exit 1
+
+  deploy-prod:
+    runs-on: ubuntu-latest
+    needs: deploy-qa # PROD solo después de QA vivo; el if de main se hereda por la cadena
+    environment: production # acá la corrida se pausa hasta que el reviewer apruebe
+    # Evita dos deploys a PROD pisándose. No ordena la cola de aprobaciones:
+    # si quedan dos corridas esperando, la vieja se rechaza a mano.
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    steps:
+      # Entre que la corrida espera y alguien aprueba, main puede moverse: con &ref=
+      # sube el commit aprobado y no lo último que haya.
+      - name: Disparar deploy en Render (back + front) del commit aprobado
+        env:
+          HOOK_API: ${{ secrets.RENDER_HOOK_API }}
+          HOOK_FRONT: ${{ secrets.RENDER_HOOK_FRONT }}
+        run: |
+          curl -fsS --max-time 30 "$HOOK_API&ref=$GITHUB_SHA"
+          curl -fsS --max-time 30 "$HOOK_FRONT&ref=$GITHUB_SHA"
+      - name: Smoke test (espera a que PROD conteste)
+        shell: bash
+        env:
+          URL_API: ${{ vars.URL_API }}
+          URL_FRONT: ${{ vars.URL_FRONT }}
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 10 "$URL_API/api/health" \
+               && curl -fsS --max-time 10 "$URL_FRONT/" > /dev/null \
+               && curl -fsS --max-time 10 "$URL_FRONT/api/health" > /dev/null; then
+              echo "PROD responde (api + base + front)"; exit 0
+            fi
+            sleep 20
+          done
+          echo "PROD no respondió a tiempo"; exit 1
