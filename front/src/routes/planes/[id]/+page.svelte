@@ -292,7 +292,7 @@
                 onclick={() => accion("refine")}
             >
                 <HugeiconsIcon icon={RefreshIcon} data-icon="inline-start" />
-                Pedir cambios
+                Refinar
             </Button>
             <Button
                 size="sm"
