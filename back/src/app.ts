@@ -21,6 +21,10 @@ import {
 import { eventosDe } from "./services/eventos";
 
 export const app = new Elysia({ prefix: "/api" })
+    // Un body que no cumple el esquema es un error del cliente: 400 (Elysia usa 422).
+    .onError(({ code, status }) => {
+        if (code === "VALIDATION") return status(400, "Datos inválidos");
+    })
     .all("/auth/*", ({ request }) => auth.handler(request))
     // Rutas con `{ usuario: true }` exigen sesión (cookie, browser) o API key
     // (`Authorization: Bearer`, agente) y reciben `usuario` en el contexto.

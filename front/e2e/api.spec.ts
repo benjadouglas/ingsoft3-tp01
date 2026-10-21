@@ -32,7 +32,7 @@ test("un plan sin contenido lo rechaza la api, y no crea nada", async ({ request
     const alta = await request.post(`${API}/api/planes`, {
         data: { proyecto, contenidoHtml: "", sesion: { harness: "e2e", id: proyecto } },
     });
-    expect(alta.status()).toBe(422);
+    expect(alta.status()).toBe(400);
 
     expect((await planes(request)).some((p) => p.proyecto === proyecto)).toBe(false);
 });
