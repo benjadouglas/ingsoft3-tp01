@@ -9,6 +9,10 @@ on:
 jobs:
   build-back:
     runs-on: ubuntu-latest
+    # Solo este job escribe paquetes: el permiso va acá y no a nivel del workflow.
+    permissions:
+      contents: read
+      packages: write
     defaults:
       run:
         shell: bash
@@ -35,16 +39,29 @@ jobs:
           name: coverage-back
           path: back/coverage
       - uses: docker/setup-buildx-action@v3
-      - name: Build de la imagen del backend
+      # Publicar va último: si los tests fallan el job se corta antes y no se publica nada.
+      - name: Entrar al registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Construir y publicar la imagen del backend
         uses: docker/build-push-action@v6
         with:
           context: ./back
-          push: false
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: ghcr.io/benjadouglas/ingsoft3-tp01-back:sha-${{ github.sha }}
           cache-from: type=gha,scope=back
           cache-to: type=gha,mode=max,scope=back
 
   build-front:
     runs-on: ubuntu-latest
+    # Solo este job escribe paquetes: el permiso va acá y no a nivel del workflow.
+    permissions:
+      contents: read
+      packages: write
     defaults:
       run:
         shell: bash
@@ -74,10 +91,19 @@ jobs:
           name: coverage-front
           path: front/coverage
       - uses: docker/setup-buildx-action@v3
-      - name: Build de la imagen del frontend
+      # Publicar va último: si los tests fallan el job se corta antes y no se publica nada.
+      - name: Entrar al registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Construir y publicar la imagen del frontend
         uses: docker/build-push-action@v6
         with:
           context: ./front
-          push: false
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: ghcr.io/benjadouglas/ingsoft3-tp01-front:sha-${{ github.sha }}
           cache-from: type=gha,scope=front
           cache-to: type=gha,mode=max,scope=front
