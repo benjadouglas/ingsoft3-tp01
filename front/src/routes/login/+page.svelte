@@ -22,6 +22,7 @@
         class="h-24 w-auto"
         style:filter={haloLogo}
     />
+    <p class="text-sm opacity-80">Los planes de tus agentes, en un solo lugar</p>
     <div class="w-68 max-w-full">
         <GoogleButton
             onclick={() => signInWithGoogle()}
