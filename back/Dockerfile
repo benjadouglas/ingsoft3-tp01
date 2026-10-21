@@ -17,6 +17,9 @@ LABEL org.opencontainers.image.source="https://github.com/benjadouglas/ingsoft3-
 WORKDIR /app
 
 ENV NODE_ENV=production
+# El commit del que salió la imagen; lo pasa el pipeline y lo devuelve /api/health.
+ARG COMMIT
+ENV COMMIT=$COMMIT
 ENV PORT=3000
 
 COPY --from=dependencies /app/node_modules ./node_modules

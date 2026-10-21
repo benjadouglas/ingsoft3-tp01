@@ -33,10 +33,10 @@ export const app = new Elysia({ prefix: "/api" })
         },
     })
     // Toca la BD para que el smoke test del deploy no dé verde con la base caída,
-    // y dice qué commit corre (Render lo expone en RENDER_GIT_COMMIT).
+    // y dice de qué commit salió la imagen (el pipeline lo pasa como build-arg COMMIT).
     .get("/health", async () => {
         await db.execute(sql`select 1`);
-        return { ok: true, commit: process.env.RENDER_GIT_COMMIT ?? null };
+        return { ok: true, commit: process.env.COMMIT ?? null };
     })
     .get("/me", ({ usuario }) => usuario, { usuario: true })
     // Genera (o regenera, invalidando la anterior) la API key del usuario. Solo con sesión: un agente no puede rotarla.
