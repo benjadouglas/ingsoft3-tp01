@@ -89,7 +89,7 @@ El servidor es un intermediario pasivo: guarda planes, versiones, comentarios y 
 Dos servicios y una base, como pide la guía y como recomendó la cátedra (dos contenedores que se encuentran por nombre; pipeline con dos builds).
 
 - **Backend**: Elysia sobre **Bun**. Drizzle para schema y migraciones (aplicadas al arrancar). Better Auth montado en `/api/auth/*` con Google como único proveedor, cookie HttpOnly, sesiones en la BD; la tabla `user` se extiende con `apiKeyHash`. Carpeta `backend/`, imagen base `oven/bun`.
-- **Frontend**: SvelteKit (Svelte 5) con `adapter-static`: una SPA servida por nginx, cuyo `nginx.conf` proxea `/api` al backend por nombre de servicio. En desarrollo, el proxy de Vite hace lo mismo. Carpeta `frontend/`.
+- **Frontend**: SvelteKit (Svelte 5) con `adapter-static`: una SPA servida por nginx, cuya plantilla (`default.conf.template`) proxea `/api` al backend que recibe por la variable `BACKEND_URL`. En desarrollo, el proxy de Vite hace lo mismo. Carpeta `frontend/`.
 - **Tipos de punta a punta**: Eden Treaty. El frontend importa `type App` del backend (workspaces de Bun) y obtiene un cliente tipado; no se generan clientes ni se duplican tipos.
 - **PostgreSQL**: único estado del sistema.
 
