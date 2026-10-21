@@ -11,7 +11,13 @@ import { usuarioPorApiKey } from "./services/apiKey";
 export const auth = betterAuth({
     appName: "htmlplan",
     database: drizzleAdapter(db, { provider: "pg", schema }),
-    emailAndPassword: { enabled: false },
+    // Solo en QA (LOGIN_CON_CLAVE=true): el usuario de las e2e entra con clave, porque
+    // un navegador automatizado no puede pasar por Google. Sin registro: el usuario se
+    // crea a mano con scripts/usuario-e2e.ts. En PROD la variable no está.
+    emailAndPassword: {
+        enabled: process.env.LOGIN_CON_CLAVE === "true",
+        disableSignUp: true,
+    },
     socialProviders: {
         google: {
             prompt: "select_account",

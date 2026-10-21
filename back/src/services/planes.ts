@@ -89,3 +89,17 @@ export async function listarPlanes(userId: string) {
         .groupBy(plan.id, project.name)
         .orderBy(desc(sql`max(${version.createdAt})`));
 }
+
+/** Borra el plan con sus versiones, comentarios y acciones (cascade). False si no es del usuario. */
+export async function borrarPlan(userId: string, id: string) {
+    const borrados = await db
+        .delete(plan)
+        .where(
+            and(
+                eq(plan.id, id),
+                sql`${plan.projectId} in (select ${project.id} from ${project} where ${project.userId} = ${userId})`,
+            ),
+        )
+        .returning({ id: plan.id });
+    return borrados.length > 0;
+}

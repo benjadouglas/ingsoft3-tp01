@@ -13,6 +13,7 @@ import {
     siguienteAccion,
 } from "./services/acciones";
 import {
+    borrarPlan,
     listarPlanes,
     obtenerHtmlActual,
     publicarPlan,
@@ -20,6 +21,10 @@ import {
 import { eventosDe } from "./services/eventos";
 
 export const app = new Elysia({ prefix: "/api" })
+    // Un body que no cumple el esquema es un error del cliente: 400 (Elysia usa 422).
+    .onError(({ code, status }) => {
+        if (code === "VALIDATION") return status(400, "Datos inválidos");
+    })
     .all("/auth/*", ({ request }) => auth.handler(request))
     // Rutas con `{ usuario: true }` exigen sesión (cookie, browser) o API key
     // (`Authorization: Bearer`, agente) y reciben `usuario` en el contexto.
@@ -92,6 +97,18 @@ export const app = new Elysia({ prefix: "/api" })
             return new Response(html, {
                 headers: { "content-type": "text/html; charset=utf-8" },
             });
+        },
+        {
+            params: t.Object({ id: t.String({ format: "uuid" }) }),
+            usuario: true,
+        },
+    )
+    .delete(
+        "/planes/:id",
+        async ({ params, usuario, status }) => {
+            if (!(await borrarPlan(usuario.id, params.id)))
+                return status(404, "Plan no encontrado");
+            return status(204);
         },
         {
             params: t.Object({ id: t.String({ format: "uuid" }) }),

@@ -24,6 +24,7 @@ services:
             PGPASSWORD: ${DB_PASSWORD}
             BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
             BETTER_AUTH_URL: http://localhost:5173
+            LOGIN_CON_CLAVE: "true" # el usuario de las e2e entra con clave, como en QA
             GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
             GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
         ports:
