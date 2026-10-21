@@ -1,0 +1,23 @@
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # La dirección del backend y el DNS llegan por variables de entorno: en compose,
+    # el nombre del servicio y el DNS de Docker; en Render, la api de ESTE entorno
+    # y un DNS público.
+    resolver ${DNS_RESOLVER} valid=10s ipv6=off;
+    set $backend_api ${BACKEND_URL};
+
+    location /api/ {
+        proxy_pass $backend_api;
+        # La api de Render es https: sin esto el TLS no sabe a qué host va.
+        proxy_ssl_server_name on;
+    }
+}
