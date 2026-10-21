@@ -13,6 +13,7 @@ import {
     siguienteAccion,
 } from "./services/acciones";
 import {
+    borrarPlan,
     listarPlanes,
     obtenerHtmlActual,
     publicarPlan,
@@ -92,6 +93,18 @@ export const app = new Elysia({ prefix: "/api" })
             return new Response(html, {
                 headers: { "content-type": "text/html; charset=utf-8" },
             });
+        },
+        {
+            params: t.Object({ id: t.String({ format: "uuid" }) }),
+            usuario: true,
+        },
+    )
+    .delete(
+        "/planes/:id",
+        async ({ params, usuario, status }) => {
+            if (!(await borrarPlan(usuario.id, params.id)))
+                return status(404, "Plan no encontrado");
+            return status(204);
         },
         {
             params: t.Object({ id: t.String({ format: "uuid" }) }),

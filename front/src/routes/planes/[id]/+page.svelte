@@ -18,11 +18,13 @@
         ArrowRight02Icon,
         Comment01Icon,
         ComputerTerminal01Icon,
+        Delete02Icon,
         RefreshIcon,
         SentIcon,
         Tick02Icon,
     } from "@hugeicons/core-free-icons";
     import { untrack } from "svelte";
+    import { goto } from "$app/navigation";
     import { fade, fly } from "svelte/transition";
     // Comentario local. No viaja al servidor hasta Refinar/Implementar.
     type Pendiente = {
@@ -207,6 +209,17 @@
         }
     }
 
+    async function borrarPlan() {
+        if (!confirm(`¿Borrar «${data.titulo}»? No se puede deshacer.`)) return;
+        error = null;
+        const res = await fetch(`/api/planes/${data.id}`, { method: "DELETE" });
+        if (!res.ok) {
+            error = "No se pudo borrar el plan.";
+            return;
+        }
+        await goto("/planes", { invalidateAll: true });
+    }
+
     // Cmd+Enter refina, Shift+Cmd+Enter implementa
     function atajo(e: KeyboardEvent) {
         if (e.key !== "Enter" || !(e.metaKey || e.ctrlKey)) return;
@@ -234,6 +247,9 @@
         </Button>
         <span class="min-w-0 flex-1 truncate text-sm">{data.titulo}</span>
         <Badge variant="outline">v{data.version}</Badge>
+        <Button variant="ghost" size="icon-sm" aria-label="Borrar plan" onclick={borrarPlan}>
+            <HugeiconsIcon icon={Delete02Icon} />
+        </Button>
     </header>
 
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
