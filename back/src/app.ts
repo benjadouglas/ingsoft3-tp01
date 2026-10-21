@@ -1,5 +1,7 @@
+import { sql } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { auth, authenticate } from "./auth";
+import { db } from "./db";
 import { generarApiKey } from "./services/apiKey";
 import {
     comentar,
@@ -30,7 +32,11 @@ export const app = new Elysia({ prefix: "/api" })
             },
         },
     })
-    .get("/health", () => ({ ok: true }))
+    // Toca la BD para que el smoke test del deploy no dé verde con la base caída.
+    .get("/health", async () => {
+        await db.execute(sql`select 1`);
+        return { ok: true };
+    })
     .get("/me", ({ usuario }) => usuario, { usuario: true })
     // Genera (o regenera, invalidando la anterior) la API key del usuario. Solo con sesión: un agente no puede rotarla.
     .post(
