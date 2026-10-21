@@ -16,3 +16,7 @@ Thumbs.db
 .idea/
 .agents/
 .claude/
+
+# Misc
+CLAUDE.md
+evidencias/
