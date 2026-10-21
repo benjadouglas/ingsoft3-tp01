@@ -52,7 +52,7 @@ jobs:
         with:
           context: ./back
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          tags: ghcr.io/benjadouglas/ingsoft3-tp01-back:sha-${{ github.sha }}
+          tags: ghcr.io/benjadouglas/htmlplan-backend:sha-${{ github.sha }}
           cache-from: type=gha,scope=back
           cache-to: type=gha,mode=max,scope=back
 
@@ -104,6 +104,6 @@ jobs:
         with:
           context: ./front
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          tags: ghcr.io/benjadouglas/ingsoft3-tp01-front:sha-${{ github.sha }}
+          tags: ghcr.io/benjadouglas/htmlplan-frontend:sha-${{ github.sha }}
           cache-from: type=gha,scope=front
           cache-to: type=gha,mode=max,scope=front
