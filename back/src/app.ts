@@ -21,8 +21,13 @@ import {
 } from "./services/planes";
 import { eventosDe } from "./services/eventos";
 
-// Sentry registra los errores 5xx y cuánto tarda cada ruta.
-export const app = Sentry.withElysia(new Elysia({ prefix: "/api" }))
+// Sentry registra los errores 5xx y cuánto tarda cada ruta. Un 404 o un 401 no es
+// un error de la app: no se reporta.
+export const app = Sentry.withElysia(new Elysia({ prefix: "/api" }), {
+    shouldHandleError: (ctx) =>
+        (ctx as { code?: unknown }).code !== "NOT_FOUND" &&
+        Number(ctx.set.status ?? 500) >= 500,
+})
     // Un body que no cumple el esquema es un error del cliente: 400 (Elysia usa 422).
     .onError(({ code, status }) => {
         if (code === "VALIDATION") return status(400, "Datos inválidos");
@@ -45,10 +50,6 @@ export const app = Sentry.withElysia(new Elysia({ prefix: "/api" }))
     .get("/health", async () => {
         await db.execute(sql`select 1`);
         return { ok: true, commit: process.env.COMMIT ?? null };
-    })
-    // Temporal (TP9): un error a propósito para verlo llegar a Sentry.
-    .get("/falla", () => {
-        throw new Error("Falla de prueba del TP9");
     })
     .get("/me", ({ usuario }) => usuario, { usuario: true })
     // Genera (o regenera, invalidando la anterior) la API key del usuario. Solo con sesión: un agente no puede rotarla.
