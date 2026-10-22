@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # back y front usan bun: Dependabot lee el bun.lock de cada carpeta.
+  - package-ecosystem: "bun"
+    directory: "/back"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "bun"
+    directory: "/front"
+    schedule:
+      interval: "weekly"
+
+  # Las actions del workflow también son dependencias.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
