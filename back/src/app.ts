@@ -27,7 +27,8 @@ export const app = Sentry.withElysia(new Elysia({ prefix: "/api" }))
     .onError(({ code, status }) => {
         if (code === "VALIDATION") return status(400, "Datos inválidos");
     })
-    .all("/auth/*", ({ request }) => auth.handler(request))
+    // parse: "none": Better Auth lee el body él mismo; si Elysia lo lee antes (pasa con Sentry), queda vacío.
+    .all("/auth/*", ({ request }) => auth.handler(request), { parse: "none" })
     // Rutas con `{ usuario: true }` exigen sesión (cookie, browser) o API key
     // (`Authorization: Bearer`, agente) y reciben `usuario` en el contexto.
     .macro({
