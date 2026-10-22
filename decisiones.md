@@ -1,4 +1,18 @@
-# Enlaces de este TP (TP6)
+# Enlaces del TP7
+
+- Paquetes publicos, etiquetados con el commit que esta en PROD (`v7.0.0`, `d9cd3d4`):
+  - https://github.com/benjadouglas/ingsoft3-tp01/pkgs/container/htmlplan-backend (`docker pull --platform linux/amd64 ghcr.io/benjadouglas/htmlplan-backend:sha-d9cd3d407ebc04dcc27dde6b381fc5823a481ae5`)
+  - https://github.com/benjadouglas/ingsoft3-tp01/pkgs/container/htmlplan-frontend (`docker pull --platform linux/amd64 ghcr.io/benjadouglas/htmlplan-frontend:sha-d9cd3d407ebc04dcc27dde6b381fc5823a481ae5`)
+- La corrida con la integracion VERDE y la e2e ROJA:
+  - Commit que rompio la app: https://github.com/benjadouglas/ingsoft3-tp01/commit/51b868fff356b25dfdfd230fdc39735a66319ee5 (PR #47, el boton "Refinar" pasa a decir "Pedir cambios")
+  - Corrida: https://github.com/benjadouglas/ingsoft3-tp01/actions/runs/39694974045
+  - `playwright-report-integracion` (verde): https://github.com/benjadouglas/ingsoft3-tp01/actions/runs/39694974045/artifacts/12389804817
+  - `playwright-report-e2e` (rojo): https://github.com/benjadouglas/ingsoft3-tp01/actions/runs/39694974045/artifacts/12390058173
+- Corrida completa en verde posterior, con aprobacion y PROD: https://github.com/benjadouglas/ingsoft3-tp01/actions/runs/39696081481
+- QA: https://htmlplan-front-qa.onrender.com (api: https://htmlplan-api-qa.onrender.com/api/health)
+- PROD: https://htmlplan-front-prod.onrender.com (api: https://htmlplan-api-prod.onrender.com/api/health)
+
+# Enlaces del TP6
 
 - Paquetes publicos, etiquetados con el commit del merge `dc3bdfb`:
   - https://github.com/benjadouglas/ingsoft3-tp01/pkgs/container/htmlplan-backend (`docker pull --platform linux/amd64 ghcr.io/benjadouglas/htmlplan-backend:sha-dc3bdfb44e4ea4b59cf51e2ac29938f467610321`)
@@ -350,3 +364,83 @@ El rollback de codigo no deshace los datos. Una migracion que borra una columna 
 > Uso de IA
 
 Use IA para armar el workflow de deploy, crear los servicios y redactar parte de estas decisiones. Lo verifique mirando las corridas en Actions, los deploys en Render (commit y Auto-Deploy en Off) y consultando las dos bases.
+
+# TP 7
+
+> Build once, deploy many
+
+En el TP6 Render reconstruia la app desde el repo con el commit verificado. Lo que corria en QA y PROD era otro build del mismo codigo, y entre los dos podian cambiar las imagenes base (`oven/bun:1.3-alpine` y `nginx:alpine` no estan fijadas por digest). Un `apk` o una version de Bun distinta en el build de PROD daba un PROD distinto de QA sin que cambie una linea.
+
+Ahora la imagen se construye una sola vez, en `build-back` y `build-front`, despues de los unitarios. Los cuatro servicios de Render pasaron a *Existing Image* (les cambie la fuente, no cree servicios nuevos, asi conservaron URL, variables y hooks). El pipeline les dice que imagen ejecutar con `imgURL=...:sha-<commit>`, y QA y PROD reciben la misma.
+
+> Etiquetas
+
+- `sha-<commit>` (los 40 caracteres) en el registry: dice de que commit salio la imagen, y solo la publica `main` despues de los tests. Es lo que se despliega.
+- `v7.0.0` en git: nombra la version que anduvo en PROD. Es para encontrarla, no para desplegar.
+- No publico `latest` porque no dice que hay adentro. Un deploy con `latest` ejecutaria lo ultimo publicado, haya pasado las e2e o no: la imagen `sha-51b868f...` (la del boton roto) esta publicada y nunca llego a PROD porque nadie la nombra.
+
+Los servicios quedaron configurados con `sha-1b8f88e...`, la imagen del ultimo merge antes del cambio. Esa no es la que corre: Render solo exige que coincidan registry y nombre, y la etiqueta la pone cada deploy del pipeline. Por eso no uso *Manual Deploy*: desplegaria la de Settings y haria retroceder el entorno.
+
+> Del tag a la imagen
+
+`git rev-list -n1 v7.0.0` da `d9cd3d407ebc04dcc27dde6b381fc5823a481ae5`, y la imagen es `ghcr.io/benjadouglas/htmlplan-{backend,frontend}:sha-d9cd3d4...`. El tag va sobre el commit que dice Deployments de `production`, no sobre el ultimo de `main`.
+
+> Como se comprueba que el entorno ejecuta la imagen
+
+La imagen del back lleva su commit adentro (`build-arg COMMIT`) y `/api/health` lo devuelve. El smoke de QA y de PROD exige que sea el `GITHUB_SHA` de la corrida: si el deploy fallara y quedara la version anterior, el smoke no da verde. En Render, el *Event* de cada deploy dice "Triggered via Deploy Hook" y nombra la etiqueta `sha-`.
+
+El smoke prueba que el entorno responde y que corre la imagen correcta, no que la app funcione. En la corrida roja el smoke dio verde con el boton roto.
+
+> Las dos suites
+
+Integracion (`front/e2e/api.spec.ts`, sin navegador, contra la api de QA):
+
+1. Publicar un plan, verlo en la lista, borrarlo y que ya no este.
+2. Un plan sin contenido: la api contesta 400 y no crea nada.
+3. Comentar un plan y que el comentario quede guardado. La elegi porque el comentario es el feedback que despues le llega al agente: si se pierde, el loop entero no sirve.
+
+e2e (`front/e2e/planes.spec.ts`, con chromium contra el front de QA):
+
+1. Un plan publicado aparece en la lista; "Borrar plan" lo saca, tambien al recargar.
+2. Abrir un plan que no existe muestra "Plan no encontrado".
+3. Comentar un bloque, tocar "Refinar" y que al recargar siga "Enviado". Es lo que hago todos los dias con la app: si no anda, el agente nunca recibe mis comentarios.
+
+Los planes los publica un agente, asi que los tests los crean por la api y despues los usan desde la pantalla. Cada test usa un titulo con la hora y borra lo que creo; un `afterEach` limpia aunque el test se corte a la mitad.
+
+Lo que no puse: las reglas de turnos y el titulo del plan ya estan en los unitarios (`reglas.ts`), y repetirlas en e2e solo las haria mas lentas. Las validaciones de cada campo van en integracion, no en el navegador. El long-poll del agente y el SSE no los cubri: dependen de tiempos y serian los primeros en volverse flaky.
+
+> El par verde/rojo
+
+La integracion le habla a la api con los nombres correctos y la base guarda y borra: si queda verde, la api y la base estan sanas. La e2e roja con la integracion verde dice que el problema esta en como el front usa la api o en la pantalla. En el reporte rojo se ve que el test espero un minuto un boton llamado "Refinar" y en el screenshot el boton dice "Pedir cambios". Si hubiera roto la api, la integracion quedaba roja y la e2e ni corria.
+
+> Integracion amplia
+
+Le pega a la api de QA ya desplegada. Gana que prueba la misma imagen que va a PROD, contra Postgres de verdad (Neon), sin armar nada en el pipeline. Pierde que llega tarde (despues del deploy), depende de que QA este arriba y comparte datos con otras corridas. La estrecha (la api levantada en el job con un Postgres de `services:`) avisaria antes, pero es otra configuracion para mantener y no prueba la imagen desplegada.
+
+> Login de las pruebas
+
+La app solo tiene login con Google, que un navegador automatizado no puede pasar. Agregue login con email y clave que solo se prende con `LOGIN_CON_CLAVE=true` (QA y compose; PROD no la tiene) y sin registro. El usuario `e2e@htmlplan.test` lo cree con `back/scripts/usuario-e2e.ts` y su clave esta en los secrets `E2E_EMAIL` y `E2E_PASSWORD`. Estan a nivel repo y no en el environment `qa` porque un job con `environment` registra un deploy en Deployments, y las pruebas no despliegan nada.
+
+Por esto el gate no prueba el login con Google: en PROD se entra por un camino que las e2e no usan. Es una clase de bug que no ataja.
+
+> Cold start y flaky
+
+Cada test tiene 60 s y cada asercion 15 s, sin `sleep`: Playwright espera lo que busca hasta el tope. El smoke del job anterior ya desperto QA. `retries: 1` absorbe una demora suelta, y un test que pasa recien en el reintento sale como flaky en el reporte. Un flaky es un test que con el mismo codigo a veces pasa y a veces no; es peor que no tener test porque acostumbra a ignorar el rojo. `workers: 1` evita que los tests se pisen entre si en el mismo QA.
+
+> La misma imagen del front en QA y PROD
+
+Lo que cambia por entorno va por variable: en el front `BACKEND_URL` y `DNS_RESOLVER` (desde el TP6), en el back la base, los secrets y `LOGIN_CON_CLAVE`. Adentro de la imagen queda solo el codigo y el build.
+
+> Limite conocido: QA compartido
+
+Las dos suites usan el mismo QA. Si mergeo dos cambios seguidos, el `deploy-qa` del segundo puede cambiar la imagen mientras corren las pruebas del primero, y esas pruebas no valen. Lo reconoceria mirando en Events de Render que imagen corria y a que hora corrio cada `deploy-qa`. Hago un merge por vez, y si dos corridas quedan esperando aprobacion rechazo la vieja: la #71 la rechace porque la #75 traia los mismos cambios mas el arreglo.
+
+> Problemas encontrados
+
+- Elysia contesta 422 a un body invalido; lo pase a 400 con un `onError` para que sea un error del cliente como pide el contrato.
+- En la primera e2e el titulo del plan seguia "visible" despues de borrarlo: era el anunciador de rutas de SvelteKit. La asercion paso a buscar el link en la lista.
+- Probando en local, el back contra Neon corto por `ETIMEDOUT` y dejo un plan sin borrar. Por eso agregue el `afterEach` de limpieza.
+
+> Uso de IA
+
+Use IA para escribir los specs y el workflow. Lo verifique corriendo las suites en local y en el pipeline, leyendo los reportes y provocando la rotura.
