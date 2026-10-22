@@ -459,3 +459,23 @@ Terraform contra Neon y Render, los mismos del TP6: `kislerdm/neon` 0.18.0, `ren
 > Uso de IA
 
 Use IA para escribir el HCL. Lo verifique leyendo cada plan y haciendo el ciclo `destroy` → `apply` contra `/api/health`.
+
+# TP 9
+
+> PR de Dependabot
+
+Mergee el #63, que sube `drizzle-orm` de 0.45.2 a 0.45.4. Es un patch y el changelog solo agrega un driver de Netlify y arregla los prepared queries de `postgres-js`. Me anime porque el pipeline lo prueba entero antes de PROD: tests, integracion y e2e contra QA.
+
+> Monitor y Sentry
+
+Suspendi la api de PROD a las 21:45:06 y UptimeRobot marco DOWN a las 21:50:10, unos 5 minutos despues. La reanude, respondio a las 21:54:24 y el UP llego a las 21:55:16. La operacion mas usada y la mas lenta es la misma, `GET /api/auth/*` (p95 513 ms), porque el layout pide la sesion en cada navegacion. Quedo como tarjeta en el tablero (#70).
+
+> Problemas encontrados
+
+- Con Sentry el login de QA dio 500 (`Body already used`): Elysia leia el body antes que Better Auth. Lo freno la integracion contra QA y lo arregle con `parse: "none"` en `/api/auth/*`.
+- Sentry reportaba los 404 como errores. Lo limite a los 5xx.
+- Dos corridas viejas que esperaban aprobacion bloqueaban la nueva. Las rechace con el motivo escrito.
+
+> Uso de IA
+
+Use IA para configurar Dependabot, CodeQL y Sentry. Lo verifique con la caida del monitor, mirando que el error y los tiempos llegaran a Sentry y con el pipeline en verde.
