@@ -444,3 +444,18 @@ Las dos suites usan el mismo QA. Si mergeo dos cambios seguidos, el `deploy-qa` 
 > Uso de IA
 
 Use IA para escribir los specs y el workflow. Lo verifique corriendo las suites en local y en el pipeline, leyendo los reportes y provocando la rotura.
+
+# TP 8
+
+> Riel y providers
+
+Terraform contra Neon y Render, los mismos del TP6: `kislerdm/neon` 0.18.0, `render-oss/render` 1.9.1 y `hashicorp/random` 3.7.2 para generar el `BETTER_AUTH_SECRET`. Preprod corre la imagen de `v7.0.0` (`sha-d9cd3d4`).
+
+> Problemas encontrados
+
+- Preprod queda sin login: `BETTER_AUTH_URL` tendria que ser la URL del front, que ya depende de la api, y eso arma un ciclo. Ademas Google pide registrar el callback a mano. Es lo que sigue siendo artesanal.
+- Al recrear los servicios Render devolvio las mismas URLs. El host de la base cambia, pero como la cadena de conexion se deriva no rompe nada.
+
+> Uso de IA
+
+Use IA para escribir el HCL. Lo verifique leyendo cada plan y haciendo el ciclo `destroy` → `apply` contra `/api/health`.
