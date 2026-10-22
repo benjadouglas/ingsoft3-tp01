@@ -33,7 +33,7 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           grep '|' coverage.txt >> "$GITHUB_STEP_SUMMARY" || true
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-back
@@ -87,7 +87,7 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           grep '|' coverage.txt >> "$GITHUB_STEP_SUMMARY" || true
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-front
@@ -170,7 +170,7 @@ jobs:
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
         run: bunx playwright test e2e/api.spec.ts
       # El reporte importa más cuando falla; nombre distinto del de e2e (dos iguales rompen la corrida).
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: playwright-report-integracion
@@ -201,7 +201,7 @@ jobs:
           E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
         run: bunx playwright test e2e/planes.spec.ts
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: playwright-report-e2e
