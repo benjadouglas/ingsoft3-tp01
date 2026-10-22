@@ -24,3 +24,9 @@ evidencias
 # reportes de Playwright
 playwright-report/
 test-results/
+
+# terraform: el estado tiene contraseñas, vive solo en mi máquina
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
