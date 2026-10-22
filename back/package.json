@@ -8,6 +8,7 @@
         "auth:schema": "npx -y auth@1.7.2 generate --config src/auth.ts --output src/db/auth.schema.ts --yes"
     },
     "dependencies": {
+        "@sentry/elysia": "11.8.0",
         "better-auth": "^1.7.2",
         "drizzle-orm": "^0.45.2",
         "elysia": "latest",

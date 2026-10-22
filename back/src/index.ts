@@ -1,3 +1,5 @@
+// Primero: Sentry tiene que estar iniciado antes de que se carguen la app y la base.
+import "./instrument";
 import { app } from "./app";
 import { migrar } from "./db";
 
