@@ -42,7 +42,7 @@ jobs:
       # Publicar va último: si los tests fallan el job se corta antes y no se publica nada.
       - name: Entrar al registry
         if: github.event_name == 'push'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -96,7 +96,7 @@ jobs:
       # Publicar va último: si los tests fallan el job se corta antes y no se publica nada.
       - name: Entrar al registry
         if: github.event_name == 'push'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
