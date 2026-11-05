@@ -16,7 +16,7 @@
     },
     "devDependencies": {
         "bun-types": "latest",
-        "drizzle-kit": "^0.31.10"
+        "drizzle-kit": "^0.31.11"
     },
     "module": "src/index.ts",
     "devEngines": {
