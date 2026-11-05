@@ -48,7 +48,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Construir y publicar la imagen del backend
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./back
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
@@ -102,7 +102,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Construir y publicar la imagen del frontend
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./front
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
